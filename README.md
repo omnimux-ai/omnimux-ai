@@ -48,4 +48,6 @@ OmniMux 桌面端帮助 TikTok 跨境卖家，用 AI 创作、复刻并发布带
 
 不想公开修改，或想移除 OmniMux 品牌：桌面端与插件中 OmniMux 自行编写的部分，见 [COMMERCIAL.md](./COMMERCIAL.md)。网关部分的版权归 new-api 作者，相关授权需联系 [support@quantumnous.com](mailto:support@quantumnous.com)。
 
-已经以 MIT 或其他许可发布到 npm 的历史版本，继续按其发布时的许可证授权。
+2026-10-28 之前发布到 npm 的插件版本，继续按其发布时的许可证授权（Sustainable Source 1.0 或 MIT）。
+
+网关公开时包含落地页在内的完整前端，与线上运行版本一致。

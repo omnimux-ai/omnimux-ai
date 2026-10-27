@@ -33,6 +33,6 @@ OmniMux 桌面端的功能插件。
 
 ## 许可
 
-OmniMux 自行编写的插件代码采用 AGPL-3.0。从上游 fork 或引入的代码保留原许可证，相关插件目录内附有上游 LICENSE 与说明，汇总见 [NOTICE](../NOTICE)。
+OmniMux 自行编写的插件代码采用 AGPL-3.0-only，附 AGPLv3 第 7 条署名要求。源码仓 [omnimux-ai/omnimux-dsh](https://github.com/omnimux-ai/omnimux-dsh) 已于 2026-10-28 改为此许可，各插件包随附 LICENSE 与 NOTICE。从上游 fork 或引入的代码保留原许可证，相关插件目录内附有上游 LICENSE 与说明，汇总见 [NOTICE](../NOTICE)。
 
-已发布到 npm 的历史版本，按其发布时声明的许可证授权。
+2026-10-28 之前发布到 npm 的版本，按其发布时声明的许可证授权（OmniMux Sustainable Source License 1.0，上游派生包为 MIT）。
