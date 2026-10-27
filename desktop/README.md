@@ -1,13 +1,15 @@
-# `desktop/` — OmniMux 跨平台桌面端外壳
+# desktop/
 
-本目录存放 **OmniMux Desktop 桌面端启动器外壳** 源码（正式发版时由内部开发仓单向同步至此）。
+OmniMux 桌面客户端，支持 macOS 与 Windows。
 
-## 定位与预装关系
+> **源码尚未放入。** 将在桌面端正式发布时放入。
 
-- **桌面端外壳 + 隔壁 [`../plugins/`](../plugins/) = 完整桌面客户端**。
-- 本目录提供 Electron 跨平台宿主启动器、本地运行环境管理与安装包构建脚本；构建桌面端时，打包流程会自动读取同级 [`../plugins/`](../plugins/) 目录并将全套 OmniMux 业务插件预装进安装包中。
+## 与插件的关系
 
-## 上游归属与许可证
+桌面客户端本身是一个外壳。用户看到的创作功能由 [`plugins/`](../plugins/) 中的插件提供，安装包会预装其中的正式版插件。
 
-- 底层桌面宿主基于 **[anywhere-labs/deepseek-harness-desktop](https://github.com/anywhere-labs/deepseek-harness-desktop)**（MIT License，Copyright © 2026 Anywhere Labs）与 **[deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)** 构建。
-- 随本总仓整体分发时适用根目录 [LICENSE](../LICENSE)（AGPLv3）与 [NOTICE](../NOTICE) 附加署名条款；如需移除 OmniMux 品牌进行商业 OEM 贴牌分发，请查阅 [COMMERCIAL.md](../COMMERCIAL.md)。
+## 上游与许可
+
+基于 [anywhere-labs/deepseek-harness-desktop](https://github.com/anywhere-labs/deepseek-harness-desktop)（MIT）与 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（MIT）。
+
+上游代码保留 MIT 许可；OmniMux 修改与新增的部分采用 AGPL-3.0。详见 [NOTICE](../NOTICE)。

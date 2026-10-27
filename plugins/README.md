@@ -1,22 +1,38 @@
-# `plugins/` — OmniMux 电商视频创作与工作流插件套件
+# plugins/
 
-本目录存放预装在 OmniMux 桌面端中的 **22 个核心业务插件** 源码，支撑跨境卖家从**找参考、拆解结构、制作商品套图与带货视频、本地剪辑到账号发布管理**的完整桌面工作区。
+OmniMux 桌面端的功能插件。
 
-## 核心模块概览
+> **源码尚未放入。** 将在桌面端正式发布时放入。
 
-- **创作与复刻**：`omnimux`（执行中枢与模型路由）、`omnimux-video`（带货视频生成与爆款复刻）、`omnimux-avatar`（AI 角色生成与多视角设定图）、`omnimux-studio` / `omnimux-apps`（成片应用工作台）。
-- **画布与剪辑**：`omnimux-workflow`（可视化节点画布工作流）、`omnimux-clip`（本地时间轴视频剪辑、镜头拆分与字幕烧录）。
-- **电商工作区**：`omnimux-inspiration`（爆款灵感采集与脚本拆解）、`omnimux-assets`（角色/场景/风格资产库）、`omnimux-products`（商品库）、`omnimux-accounts` 与 `omnimux-publish`（平台账号连接与发布管理）、`omnimux-browser`（浏览器采集扩展）、`omnimux-market`（技能与插件市场）。
+## 桌面端预装的插件
 
-## 三种运行模式（官方网关 / 本地 Agent / BYOK 自带密钥）
+| 插件 | 作用 | 状态 |
+| :--- | :--- | :--- |
+| `omnimux` | 执行中枢：模型调用、生成任务、运行模式 | 正式 |
+| `omnimux-video` | 带货视频生成与参考视频复刻 | 正式 |
+| `omnimux-workflow` | 节点式工作流 | 正式 |
+| `omnimux-clip` | 本地视频剪辑 | 正式 |
+| `omnimux-inspiration` | 灵感收集与拆解 | 正式 |
+| `omnimux-assets` | 素材管理 | 正式 |
+| `omnimux-products` | 商品资料管理 | 正式 |
+| `omnimux-market` | 技能与插件市场 | 正式 |
+| `omnimux-accounts` | 平台账号连接 | 测试中 |
+| `omnimux-publish` | 内容发布 | 测试中 |
+| `omnimux-analytics` | 账号数据同步 | 测试中 |
+| `omnimux-forms` | 表单交互 | 测试中 |
 
-插件中枢原生支持按用途（文本 / 分析 / 图像 / 视频 / 音频）灵活绑定通道：
-- **官方通道（`official`）**：连接 `omnimux.ai` 托管网关调用 Seedance、GPT Image、Nano Banana、Suno、Gemini 等调校模型。
-- **本地 Agent（`agent`）**：调用本机已安装的编程 Agent CLI 处理文本与脚本分析任务。
-- **自备密钥（`key` / BYOK）**：直连用户自配的第三方供应商端点（支持 fal、OpenAI、OpenRouter、SiliconFlow 或自定义端点）。
+插件通过 npm 发布，桌面端安装包从 npm 获取并预装。本目录另含尚未进入桌面端的实验性插件。
 
-## 许可证与商业授权 (AGPLv3 + Section 7 Notice)
+## 运行模式
 
-本目录全部自研插件适用本仓库根目录的 **[AGPLv3 许可证](../LICENSE)** 与 **[NOTICE 强制署名条款](../NOTICE)**：
-- 个人使用、学术研究及遵守 AGPLv3 开源与署名义务的自托管完全免费。
-- 严禁在未获取商业授权的情况下抹除 `OmniMux` 品牌标识进行白标转售（OEM），或将修改后的插件作为闭源商业 SaaS 服务对外收费运营。商业授权请查阅 [COMMERCIAL.md](../COMMERCIAL.md) 并联系 `hello@omnimux.ai`。
+每类任务（文本、分析、图像、视频、音频）可以分别选择：
+
+- **官方服务**：通过 omnimux.ai 生成，消耗积分。
+- **本地 Agent**：调用本机已安装的编程 Agent 处理文本与分析。
+- **自备密钥**：使用你自己的 fal、OpenAI、OpenRouter、SiliconFlow 或自定义服务密钥。
+
+## 许可
+
+OmniMux 自行编写的插件代码采用 AGPL-3.0。从上游 fork 或引入的代码保留原许可证，相关插件目录内附有上游 LICENSE 与说明，汇总见 [NOTICE](../NOTICE)。
+
+已发布到 npm 的历史版本，按其发布时声明的许可证授权。
