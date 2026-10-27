@@ -1,0 +1,69 @@
+OmniMux & Upstream Attribution Notices
+=============================================================================
+
+This repository is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0). See LICENSE for the full license text.
+
+==== Additional Terms under AGPLv3 Section 7 (OmniMux) ====
+
+Pursuant to Section 7(b), 7(c), and 7(e) of the GNU Affero General Public
+License version 3:
+
+1. Attribution Preservation (Section 7(b)):
+   Modified versions or deployments of this software that present a user
+   interface (web, desktop, or plugin surfaces) must prominently preserve the
+   following attribution notice and visible link in the Appropriate Legal
+   Notices and in any prominent about, legal, footer, or attribution location:
+
+   "Powered by OmniMux (https://omnimux.ai)"
+
+2. Origin & Modification Marking (Section 7(c)):
+   Modified versions must not misrepresent the origin of the software and must
+   clearly mark their changes as different from the original OmniMux release.
+
+3. Trademark Reservation (Section 7(e)):
+   This license does not grant any rights under trademark law for use of the
+   "OmniMux" trade names, trademarks, logos, or service marks in commercial
+   redistribution or white-labeled services without a separate written
+   Commercial License from Twinspace Labs LLC (contact: hello@omnimux.ai).
+
+==== Upstream Notices (new-api / QuantumNous) ====
+
+The `gateway/` component is a fork of new-api:
+Copyright (c) QuantumNous and contributors.
+https://github.com/QuantumNous/new-api
+Licensed under the GNU Affero General Public License v3.0.
+
+Pursuant to Section 7(b) of the GNU Affero General Public License version 3,
+the following reasonable legal notice and author attribution must be preserved
+by modified versions in the Appropriate Legal Notices and in any prominent
+about, legal, footer, or attribution location presented by the user interface:
+
+"Frontend design and development by New API contributors."
+
+Modified versions that present a user interface must also preserve a visible
+link to the original project in a prominent about, legal, footer, or
+attribution location:
+
+https://github.com/QuantumNous/new-api
+
+Modified versions must not misrepresent the origin of the software and must
+mark their changes in accordance with AGPLv3 Section 7(c).
+
+new-api is developed based on One API:
+Copyright (c) 2023 JustSong (https://github.com/songquanpeng/one-api, MIT License).
+
+==== Upstream Notices (Desktop & Plugin Ecosystem) ====
+
+The `desktop/` component is built on DeepSeek Harness Desktop:
+- anywhere-labs/deepseek-harness-desktop — Copyright (c) 2026 Anywhere Labs (MIT License)
+- deepseek-ai/deepseek-harness — DeepSeek Harness runtime ecosystem
+
+The `plugins/` component incorporates and extends open-source projects under
+their respective permissive licenses:
+- @cocofhu/skillhub — Copyright (c) 2026 cocofhu (MIT License)
+- Augani/openreel-video — Copyright (c) Augani and OpenReel Contributors (MIT License)
+- liustack/dsh-viewer — Copyright (c) liustack (MIT License)
+- Lum1104/dsh-browser — Copyright (c) Lum1104 (MIT License)
+
+==== End of Notices ====
