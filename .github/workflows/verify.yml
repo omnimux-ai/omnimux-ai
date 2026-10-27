@@ -1,0 +1,38 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Daily, so a rewritten or deleted upstream commit surfaces without waiting
+    # for someone to touch this repository.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate lock files
+        run: |
+          node -e "JSON.parse(require('node:fs').readFileSync('versions.json','utf8'))"
+          node -e "JSON.parse(require('node:fs').readFileSync('versions.schema.json','utf8'))"
+
+      # Private components need a token that can read them. Without the secret
+      # the run reports them as skipped and exits 2, which still fails the job:
+      # a scheduled verification that cannot see half the components is not a
+      # green verification.
+      - name: Verify recorded commits
+        env:
+          GH_TOKEN: ${{ secrets.OMNIMUX_READ_TOKEN }}
+        run: node scripts/verify.mjs
