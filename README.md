@@ -1,4 +1,9 @@
-# OmniMux (`omnimux-ai/omnimux-ai`)
+# OmniMux — 发现、复刻和裂变电商爆款视频
+
+<p align="center">
+  <strong>Find, recreate & scale viral shoppable videos</strong><br>
+  <sub>OmniMux 桌面端帮助 TikTok Shop、Instagram 与 YouTube 跨境卖家，用 AI 创作、复刻并发布带货视频，提高转化。</sub>
+</p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg" alt="License: AGPL v3"></a>
@@ -7,9 +12,20 @@
   <a href="https://docs.omnimux.ai"><img src="https://img.shields.io/badge/Docs-docs.omnimux.ai-purple.svg" alt="Documentation"></a>
 </p>
 
-**OmniMux** 聚焦于 **AI 角色生成与参考视频复刻**（从文字或照片建立角色，结合参考视频制作角色视频）。
+---
 
-本仓库是 OmniMux 面向开发者与自托管用户的**统一代码总仓**，采用“内部独立研发、发版单向脱敏同步”的架构，将服务端网关底座、跨平台桌面端外壳与核心业务插件统一收敛在三个顶层目录中。
+## ✨ 产品定位：从商品创意到带货视频
+
+把商品和创意交给桌面端 Agent，围绕 **对标 → 拆解 → 制作 → 发布 → 复盘** 跑通跨境电商带货内容工作流：
+
+- **对标与拆解（Discover & Break down）**：通过浏览器扩展将刷到的参考视频与图文一键收进灵感库，拆解开场钩子、产品卖点与购买引导，整理成可复用的分镜脚本与提示词结构。
+- **Agent 对话与画布制作（Create with Agent & Canvas）**：通过对话让 OmniMux Agent 规划并生成内容，或在可视化画布中连接图片、视频、配音与剪辑节点搭建可复用工作流；覆盖**商品套图上新、商品生视频、爆款视频复刻、图文带货轮播、AI 角色与多角度设定图、本地视频剪辑与字幕烧录**。
+- **多端协同入口（Surfaces）**：
+  - **OmniMux 桌面端（macOS & Windows）**：集成画布、资产库、灵感库与全部创作工具的本地工作台，支持连接官方托管网关、调用本机编程 Agent 或配置自备密钥（BYOK）。
+  - **CLI 与编程 Agent 接入**：在 Codex、Claude Code 等常用 Agent 中直接调用视频、图片与分析能力。
+  - **浏览器扩展**：浏览网页时一键采集参考素材，无缝同步回桌面端拆解与复刻。
+
+> **能力与边界说明**：本仓库是 OmniMux 面向开发者与自托管用户的统一代码总仓（采用“内部独立研发、发版单向脱敏同步”架构）。页面中的流程示意数据不代表实时抓取承诺；社媒账号连接与发布能力以实际交付模块与各平台规则为准；`omnimux.ai` 官网可选体验包、订阅套餐或按次充值积分以线上实际价目与钱包权益为准。
 
 ---
 
@@ -17,11 +33,9 @@
 
 | 目录 | 定位与职责 | 上游基础与致谢 |
 | :--- | :--- | :--- |
-| **[`gateway/`](./gateway/)** | **服务端网关底座**：负责多模态模型接口转发、异步媒体任务轮询、账户与额度结算基础框架（不含官网营销落地页与私有渠道账本）。 | 基于 **[QuantumNous/new-api](https://github.com/QuantumNous/new-api)**（AGPLv3）与 [One API](https://github.com/songquanpeng/one-api)（MIT）二次开发 |
-| **[`desktop/`](./desktop/)** | **跨平台桌面启动器**：基于 Electron 的本地宿主外壳，打包构建时自动从同级 [`plugins/`](./plugins/) 目录预装全套业务插件。 | 基于 **[anywhere-labs/deepseek-harness-desktop](https://github.com/anywhere-labs/deepseek-harness-desktop)**（MIT）与 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) |
-| **[`plugins/`](./plugins/)** | **核心业务插件套件**：桌面端预装的 22 个创作与工作流插件（含 AI 角色工作室、视频复刻、剪辑工坊、画布编排、插件市场与 BYOK 自备密钥支持）。 | 融合 [@cocofhu/skillhub](https://github.com/cocofhu/skillhub)、[Augani/openreel-video](https://github.com/Augani/openreel-video)、[liustack/dsh-viewer](https://github.com/liustack/dsh-viewer)、[Lum1104/dsh-browser](https://github.com/Lum1104/dsh-browser) 等开源组件 |
-
-> **说明**：本总仓仅包含上述可公开编译的模块代码，不包含 `omnimux.ai` 托管云服务的私有运维编排、上游供应商底价台账及官网营销素材。官网生成服务费用与套餐权益以 `omnimux.ai` 实际结算为准。
+| **[`gateway/`](./gateway/)** | **服务端网关底座**：负责多模态模型接口转发（视频/图像/音频/文本）、参考视频拆解与复刻任务调度、社媒连接接口及账户额度结算基础框架（已剔除官网营销落地页与私有渠道采购底价账本）。 | 基于 **[QuantumNous/new-api](https://github.com/QuantumNous/new-api)**（AGPLv3）与 [One API](https://github.com/songquanpeng/one-api)（MIT）二次开发 |
+| **[`desktop/`](./desktop/)** | **跨平台桌面启动器**：支持 macOS 与 Windows 的 Electron 本地宿主外壳；打包构建时自动从同级 [`plugins/`](./plugins/) 目录预装全套业务插件。 | 基于 **[anywhere-labs/deepseek-harness-desktop](https://github.com/anywhere-labs/deepseek-harness-desktop)**（MIT）与 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) |
+| **[`plugins/`](./plugins/)** | **核心业务插件套件**：桌面端预装的 22 个电商创作与工作流插件（含 `omnimux` 执行中枢、爆款视频复刻、AI 角色工作室、视频剪辑工坊、可视化画布、灵感与资产库、浏览器扩展伴侣、插件市场及 BYOK 自备密钥支持）。 | 融合 [@cocofhu/skillhub](https://github.com/cocofhu/skillhub)、[Augani/openreel-video](https://github.com/Augani/openreel-video)、[liustack/dsh-viewer](https://github.com/liustack/dsh-viewer)、[Lum1104/dsh-browser](https://github.com/Lum1104/dsh-browser) 等开源组件 |
 
 ---
 
