@@ -1,0 +1,166 @@
+{
+  "version": "1.0.0",
+  "operations": [
+    {
+      "id": "chat",
+      "label": "纯文本对话",
+      "group": "text",
+      "defaultOutputType": "text",
+      "promptPolicy": "required",
+      "notes": "YAML 应显式列 prompt slot"
+    },
+    {
+      "id": "vision_chat",
+      "label": "图文多模态对话",
+      "group": "text",
+      "defaultOutputType": "text",
+      "promptPolicy": "required",
+      "notes": "prompt + reference 图"
+    },
+    {
+      "id": "document_analyze",
+      "label": "文档解析",
+      "group": "text",
+      "defaultOutputType": "text",
+      "promptPolicy": "required",
+      "notes": "document 输入；画布 document 消费不在 H1"
+    },
+    {
+      "id": "text_to_image",
+      "label": "文生图",
+      "group": "image",
+      "defaultOutputType": "image",
+      "promptPolicy": "required"
+    },
+    {
+      "id": "image_to_image",
+      "label": "图生图",
+      "group": "image",
+      "defaultOutputType": "image",
+      "promptPolicy": "required"
+    },
+    {
+      "id": "multi_reference",
+      "label": "多图主体参考",
+      "group": "image",
+      "defaultOutputType": "image",
+      "promptPolicy": "required"
+    },
+    {
+      "id": "inpaint_outpaint",
+      "label": "局部重绘",
+      "group": "image",
+      "defaultOutputType": "image",
+      "promptPolicy": "required"
+    },
+    {
+      "id": "text_to_video",
+      "label": "文生视频",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "required"
+    },
+    {
+      "id": "first_frame",
+      "label": "首帧驱动",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional"
+    },
+    {
+      "id": "first_last_frame",
+      "label": "首尾帧过渡",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional"
+    },
+    {
+      "id": "end_frame",
+      "label": "尾帧参考",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional",
+      "notes": "仅尾帧锚点；禁止映射为 first_frame；slot=end_frame role=last_frame；wire 候选 image_tail（#566 间接 / #567）"
+    },
+    {
+      "id": "video_multi_ref",
+      "label": "全能参考",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional"
+    },
+    {
+      "id": "digital_human",
+      "label": "数字人/对口型",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional",
+      "notes": "图/视频+音频驱动；不得因粗 videoGenerate 自动 listed；不强制 prompt"
+    },
+    {
+      "id": "video_edit",
+      "label": "视频编辑/重绘",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional"
+    },
+    {
+      "id": "video_extend",
+      "label": "视频延长",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional"
+    },
+    {
+      "id": "document_to_video",
+      "label": "文档参考",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional"
+    },
+    {
+      "id": "webpage_to_video",
+      "label": "网页参考",
+      "group": "video",
+      "defaultOutputType": "video",
+      "promptPolicy": "optional"
+    },
+    {
+      "id": "text_to_speech",
+      "label": "语音合成",
+      "group": "audio",
+      "defaultOutputType": "audio",
+      "promptPolicy": "required"
+    },
+    {
+      "id": "voice_clone",
+      "label": "声音克隆",
+      "group": "audio",
+      "defaultOutputType": "audio",
+      "promptPolicy": "required"
+    },
+    {
+      "id": "text_to_music",
+      "label": "音乐创作",
+      "group": "audio",
+      "defaultOutputType": "audio",
+      "promptPolicy": "required"
+    },
+    {
+      "id": "speech_to_text",
+      "label": "语音转文字",
+      "group": "audio",
+      "defaultOutputType": "text",
+      "promptPolicy": "none",
+      "notes": "source audio only；不得强制 prompt；#538 已挂载 speechToText 执行面，待 #530 探测翻 live"
+    },
+    {
+      "id": "webpage_read",
+      "label": "网页读取",
+      "group": "text",
+      "defaultOutputType": "text",
+      "promptPolicy": "none",
+      "notes": "URL→正文；产品 reader 工具面走独立端点 /v1/reader；输入是 URL 不是 document；不得强制 prompt"
+    }
+  ]
+}
