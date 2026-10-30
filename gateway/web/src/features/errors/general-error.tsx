@@ -23,8 +23,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-// Public open-source Issues (monorepo laozhong86/OmniMux is private).
-const FEEDBACK_URL = 'https://github.com/laozhong86/omnimux-cli/issues'
+// The public source repository carries the issue tracker.
+const FEEDBACK_URL = 'https://github.com/omnimux-ai/omnimux-ai/issues'
 
 type GeneralErrorProps = React.HTMLAttributes<HTMLDivElement> & {
   minimal?: boolean
