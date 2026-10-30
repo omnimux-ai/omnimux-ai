@@ -1,0 +1,15 @@
+packages:
+  - plugins/*
+  - packages/*
+  - plugins/omnimux-browser/extension
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
+  '@google/genai': false
+  esbuild: true
+  koffi: true
+  node-pty: true
+  protobufjs: false
+minimumReleaseAge: 0
+minimumReleaseAgeExclude:
+  - aigc-provider-runtime-kit@0.2.0
+  - blobatar@0.2.0
