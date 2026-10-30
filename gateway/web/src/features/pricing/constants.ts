@@ -202,3 +202,32 @@ export const USD_PER_CREDIT = 0.1
 
 /** Default raw_quota units that equal 1 USD (ops / status may override). */
 export const DEFAULT_QUOTA_PER_UNIT = 500000
+
+export type TopupRung = {
+  /** USD usage value the preset sells (matches backend `amount_options`). */
+  amountUsd: number
+  /** Credits granted; equals amountUsd / USD_PER_CREDIT, unaffected by discount. */
+  credits: number
+  /** Multiplier applied to money paid; 1 means no discount. */
+  discount: number
+}
+
+/**
+ * Public mirror of the top-up volume ladder.
+ *
+ * Canonical source is `scripts/ops/payment/amount-ladder.json` (applied to
+ * production by `scripts/ops/apply-payment-amount-ladder.js`). A regression
+ * test reads that JSON and fails if this list drifts from it, so the public
+ * page cannot advertise a discount the backend will not honour.
+ *
+ * Discounts only match exact preset amounts server-side; custom amounts are
+ * charged at full price.
+ */
+export const TOPUP_LADDER: readonly TopupRung[] = [
+  { amountUsd: 10, credits: 100, discount: 1 },
+  { amountUsd: 50, credits: 500, discount: 1 },
+  { amountUsd: 100, credits: 1000, discount: 1 },
+  { amountUsd: 300, credits: 3000, discount: 0.95 },
+  { amountUsd: 1000, credits: 10000, discount: 0.9 },
+  { amountUsd: 3000, credits: 30000, discount: 0.85 },
+]

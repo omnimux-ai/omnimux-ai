@@ -74,7 +74,7 @@ it('translates billing history statuses and updates them when the language chang
 })
 
 it.each([{ priceRatio: 7.3 }, { priceRatio: 0.000123 }])(
-  'keeps the standalone recharge panel hidden at price ratio $priceRatio while the redemption flow still renders',
+  'renders the recharge panel at price ratio $priceRatio without breaking the redemption flow',
   async ({ priceRatio }) => {
     render(
       <I18nextProvider i18n={i18n}>
@@ -105,11 +105,10 @@ it.each([{ priceRatio: 7.3 }, { priceRatio: 0.000123 }])(
         />
       </I18nextProvider>
     )
-    // Standalone top-up is switched off in-product: the preset buttons and the
-    // amount input must not render, whatever price ratio is configured.
-    expect(screen.queryByRole('spinbutton')).toBeNull()
-    expect(screen.getAllByRole('button')).toHaveLength(1)
-    expect(screen.queryByPlaceholderText('最低 1')).toBeNull()
+    // Pay-as-you-go is the only credit product: the amount input and the preset
+    // grid render, and neither breaks at an extreme configured price ratio.
+    expect(screen.getByRole('spinbutton')).toBeVisible()
+    expect(screen.getAllByRole('button').length).toBeGreaterThan(1)
 
     // The redemption card stays: its input and CTA are still reachable.
     expect(
@@ -123,7 +122,6 @@ it.each([{ priceRatio: 7.3 }, { priceRatio: 0.000123 }])(
       screen.getByPlaceholderText('Enter your redemption code')
     ).toBeVisible()
     expect(screen.getByRole('button', { name: 'Redeem' })).toBeVisible()
-    expect(screen.queryByRole('spinbutton')).toBeNull()
-    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('spinbutton')).toBeVisible()
   }
 )

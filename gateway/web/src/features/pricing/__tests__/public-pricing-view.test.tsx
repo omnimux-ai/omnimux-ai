@@ -139,10 +139,14 @@ beforeAll(() => {
     'One balance, every model. Metered per call, visible live in the console.':
       'One balance, every model. Metered per call, visible live in the console.',
     'Top up credits': 'Top up credits',
-    'Pay with card, Alipay/WeChat, or wire transfer. Auto-top-up keeps production online.':
-      'Pay with card, Alipay/WeChat, or wire transfer. Auto-top-up keeps production online.',
-    '1 credit = ${{usd}} USD · min top-up $10':
-      '1 credit = ${{usd}} USD · min top-up $10',
+    'Pay with card, Alipay/WeChat, or wire transfer.':
+      'Pay with card, Alipay/WeChat, or wire transfer.',
+    '1 credit = ${{usd}} USD': '1 credit = ${{usd}} USD',
+    'Top up more, pay less': 'Top up more, pay less',
+    'Discounts apply to preset amounts only':
+      'Discounts apply to preset amounts only',
+    Credits: 'Credits',
+    'Save {{percent}}%': 'Save {{percent}}%',
     'Call any model': 'Call any model',
     'Video and audio billed per second, images per generation, LLMs per token. Unit prices sit on each model card — no hidden multipliers.':
       'Video and audio billed per second, images per generation, LLMs per token. Unit prices sit on each model card — no hidden multipliers.',
@@ -218,6 +222,9 @@ describe('PublicPricingView', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: 'How billing works' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Top up more, pay less' })
     ).toBeInTheDocument()
     expect(document.querySelector('#pricing-models')).not.toBeNull()
 

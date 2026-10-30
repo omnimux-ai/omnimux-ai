@@ -49,7 +49,9 @@ describe('BillingHero', () => {
     expect(
       screen.getByRole('heading', { name: 'Pay for what you use' })
     ).toBeInTheDocument()
-    expect(screen.getByText('Optional plans or prepaid credits')).toBeInTheDocument()
+    // 订阅套餐已下线，hero 不得再宣称「可选套餐」。
+    expect(screen.queryByText(/optional plans/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/prepaid credits/i)).not.toBeInTheDocument()
     expect(screen.getByText('Check prices and wallet allowances')).toBeInTheDocument()
     expect(screen.getByText('Review generation history')).toBeInTheDocument()
     expect(screen.getByText('Failed tasks return generation credits')).toBeInTheDocument()

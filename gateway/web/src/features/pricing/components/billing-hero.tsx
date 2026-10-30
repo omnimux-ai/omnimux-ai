@@ -30,7 +30,6 @@ export const PRICING_MODELS_SECTION_ID = 'pricing-models'
 const ENTERPRISE_MAILTO = 'mailto:sales@omnimux.ai'
 
 const FEATURE_PILL_KEYS = [
-  'Optional plans or prepaid credits',
   'Check prices and wallet allowances',
   'Review generation history',
   'Failed tasks return generation credits',
@@ -75,11 +74,11 @@ export function BillingHero(props: BillingHeroProps) {
   const subtitle =
     typeof props.modelCount === 'number' && props.modelCount > 0
       ? t(
-          'Choose an optional plan or top up and pay per generation. This catalog lists {{count}} available models; prices and allowances follow your wallet settings.',
+          'Top up and pay per generation. This catalog lists {{count}} available models; prices and allowances follow your wallet settings.',
           { count: props.modelCount }
         )
       : t(
-          'Choose an optional plan or top up and pay per generation. Check current prices and allowances in your wallet.'
+          'Top up and pay per generation. Check current prices and allowances in your wallet.'
         )
 
   return (

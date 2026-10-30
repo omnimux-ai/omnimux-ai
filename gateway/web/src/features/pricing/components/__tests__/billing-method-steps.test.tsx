@@ -29,10 +29,9 @@ beforeAll(() => {
     'One balance, every model. Metered per call, visible live in the console.':
       'One balance, every model. Metered per call, visible live in the console.',
     'Top up credits': 'Top up credits',
-    'Pay with card, Alipay/WeChat, or wire transfer. Auto-top-up keeps production online.':
-      'Pay with card, Alipay/WeChat, or wire transfer. Auto-top-up keeps production online.',
-    '1 credit = ${{usd}} USD · min top-up $10':
-      '1 credit = ${{usd}} USD · min top-up $10',
+    'Pay with card, Alipay/WeChat, or wire transfer.':
+      'Pay with card, Alipay/WeChat, or wire transfer.',
+    '1 credit = ${{usd}} USD': '1 credit = ${{usd}} USD',
     'Call any model': 'Call any model',
     'Video and audio billed per second, images per generation, LLMs per token. Unit prices sit on each model card — no hidden multipliers.':
       'Video and audio billed per second, images per generation, LLMs per token. Unit prices sit on each model card — no hidden multipliers.',
@@ -56,7 +55,7 @@ describe('BillingMethodSteps', () => {
     expect(screen.getByText('Call any model')).toBeInTheDocument()
     expect(screen.getByText('Every cent is traceable')).toBeInTheDocument()
 
-    const expectedRate = `1 credit = $${USD_PER_CREDIT.toFixed(2)} USD · min top-up $10`
+    const expectedRate = `1 credit = $${USD_PER_CREDIT.toFixed(2)} USD`
     expect(screen.getByText(expectedRate)).toBeInTheDocument()
     expect(USD_PER_CREDIT).toBe(0.1)
     expect(screen.getByText('One API → 75 models')).toBeInTheDocument()
@@ -64,6 +63,17 @@ describe('BillingMethodSteps', () => {
       screen.getByText('Generation credit refunds follow task records')
     ).toBeInTheDocument()
     expect(screen.queryByText('No minimums · failed calls free')).toBeNull()
+  })
+
+  test('step 01 drops the unimplemented auto-top-up claim and the hardcoded minimum', () => {
+    render(<BillingMethodSteps modelCount={75} />)
+
+    // 自动充值没有实现；最低充值额由 /api/user/topup/info 下发，写死在文案里会漂移。
+    expect(screen.queryByText(/auto-top-up/i)).toBeNull()
+    expect(screen.queryByText(/min top-up/i)).toBeNull()
+    expect(
+      screen.getByText('Pay with card, Alipay/WeChat, or wire transfer.')
+    ).toBeInTheDocument()
   })
 
   test('uses a responsive three-column grid class on the step container', () => {

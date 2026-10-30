@@ -65,9 +65,9 @@ import { CreemProductsSection } from './creem-products-section'
  * Money the user pays (already × priceRatio / gateway calc).
  * Uses formatLocalCurrencyAmount — system path for pay money; never 积分/tokens.
  */
-// fork: credits are sold only through subscriptions, so the wallet no longer
-// offers standalone credit top-up. Redemption codes stay available.
-const CREDIT_TOPUP_ENABLED = false
+// fork: pay-as-you-go is the only credit product, so the wallet sells credits
+// again. Keep the switch so a future pause stays one-line reversible.
+const CREDIT_TOPUP_ENABLED = true
 
 function formatPayAmount(amount: number): string {
   return formatLocalCurrencyAmount(amount, {

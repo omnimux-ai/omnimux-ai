@@ -47,9 +47,8 @@ export function BillingMethodSteps(props: BillingMethodStepsProps) {
     {
       number: '01',
       titleKey: 'Top up credits',
-      descriptionKey:
-        'Pay with card, Alipay/WeChat, or wire transfer. Auto-top-up keeps production online.',
-      footer: t('1 credit = ${{usd}} USD · min top-up $10', {
+      descriptionKey: 'Pay with card, Alipay/WeChat, or wire transfer.',
+      footer: t('1 credit = ${{usd}} USD', {
         usd: USD_PER_CREDIT.toFixed(2),
       }),
     },

@@ -36,7 +36,12 @@ import { LoadingSkeleton } from './components/loading-skeleton'
 import { ModelPricingCard } from './components/model-pricing-card'
 import { PricingOfflineBanner } from './components/pricing-offline-banner'
 import { PublicPricingToolbar } from './components/public-pricing-toolbar'
-import { MODALITY_FILTERS, type ModalityFilter } from './constants'
+import { TopupLadder } from './components/topup-ladder'
+import {
+  MODALITY_FILTERS,
+  TOPUP_LADDER,
+  type ModalityFilter,
+} from './constants'
 import { usePricingData } from './hooks/use-pricing-data'
 import { usePublicPricingFilters } from './hooks/use-public-pricing-filters'
 import {
@@ -287,6 +292,8 @@ export function PublicPricingView(props: PublicPricingViewProps) {
       />
 
       <BillingMethodSteps modelCount={cards.length} />
+
+      <TopupLadder ladder={TOPUP_LADDER} />
 
       <div id={PRICING_MODELS_SECTION_ID} className='scroll-mt-24 space-y-6'>
         <PricingOfflineBanner
