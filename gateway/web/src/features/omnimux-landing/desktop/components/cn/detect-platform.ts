@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { DetectedPlatform } from './download-context'
+import type { DetectedPlatform, MacArch } from './download-context'
 
 /**
  * Resolves the installer this visit needs. Phones and tablets get `null`
@@ -44,4 +44,31 @@ export function detectPlatform(): DetectedPlatform {
   if (/win/.test(platform) || /windows/i.test(ua)) return 'win'
   if (/mac/.test(platform) || /mac os x/i.test(ua)) return 'mac'
   return null
+}
+
+/**
+ * Resolves which Mac build this visit needs. `arm` wins because every Mac
+ * sold since late 2020 is Apple silicon, and an Intel user who downloads the
+ * arm64 build simply cannot open it — so `null` (unsupported API, rejected
+ * promise, or a surprising value) still falls back to the safe default.
+ */
+export async function detectMacArch(): Promise<MacArch | null> {
+  if (detectPlatform() !== 'mac') return null
+
+  const nav = navigator as Navigator & {
+    userAgentData?: {
+      getHighEntropyValues?: (
+        hints: string[]
+      ) => Promise<{ architecture?: string }>
+    }
+  }
+  try {
+    const values = await nav.userAgentData?.getHighEntropyValues?.([
+      'architecture',
+    ])
+    if (values?.architecture === 'x86') return 'x64'
+  } catch {
+    // High-entropy hints can reject; arm64 stays the default below.
+  }
+  return 'arm64'
 }

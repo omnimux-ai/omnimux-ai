@@ -27,12 +27,13 @@ import {
 } from 'react'
 
 import { useCopy } from '../../i18n'
-import { detectPlatform } from './detect-platform'
+import { detectMacArch, detectPlatform } from './detect-platform'
 import { DOWNLOAD_MAC, DOWNLOAD_WIN } from './data'
 import {
   DownloadContext,
   type DetectedPlatform,
   type DownloadTarget,
+  type MacArch,
 } from './download-context'
 import { Icon } from './icons'
 
@@ -40,10 +41,20 @@ export function DownloadProvider(props: { children: ReactNode }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [recommended, setRecommended] = useState<DownloadTarget>('mac')
   const [platform, setPlatform] = useState<DetectedPlatform>(null)
+  const [macArch, setMacArch] = useState<MacArch | null>(null)
 
   // Detection touches `navigator`, so it runs after mount to keep the server
   // and first client render identical.
   useEffect(() => setPlatform(detectPlatform()), [])
+  useEffect(() => {
+    let stale = false
+    void detectMacArch().then((arch) => {
+      if (!stale) setMacArch(arch)
+    })
+    return () => {
+      stale = true
+    }
+  }, [])
 
   const open = useCallback((target?: DownloadTarget) => {
     setRecommended(target ?? detectPlatform() ?? 'mac')
@@ -65,8 +76,8 @@ export function DownloadProvider(props: { children: ReactNode }) {
   }, [platform])
 
   const value = useMemo(
-    () => ({ open, platform, downloadDirect }),
-    [open, platform, downloadDirect]
+    () => ({ open, platform, macArch, downloadDirect }),
+    [open, platform, macArch, downloadDirect]
   )
 
   return (

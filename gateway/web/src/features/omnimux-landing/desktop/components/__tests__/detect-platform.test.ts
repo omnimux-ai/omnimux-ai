@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { detectPlatform } from '../cn/detect-platform'
+import { detectMacArch, detectPlatform } from '../cn/detect-platform'
 
 const MAC_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
@@ -37,16 +37,33 @@ function stubNavigator(init: {
   userAgent: string
   platform?: string
   userAgentDataPlatform?: string
+  userAgentDataArchitecture?: string | null
   maxTouchPoints?: number
 }) {
+  const userAgentData =
+    init.userAgentDataPlatform || init.userAgentDataArchitecture !== undefined
+      ? {
+          platform: init.userAgentDataPlatform ?? '',
+          getHighEntropyValues: () =>
+            init.userAgentDataArchitecture === null
+              ? Promise.reject(new Error('unsupported hint'))
+              : Promise.resolve({ architecture: init.userAgentDataArchitecture }),
+        }
+      : undefined
   vi.stubGlobal('navigator', {
     userAgent: init.userAgent,
     platform: init.platform ?? '',
     maxTouchPoints: init.maxTouchPoints ?? 0,
-    ...(init.userAgentDataPlatform
-      ? { userAgentData: { platform: init.userAgentDataPlatform } }
-      : {}),
+    ...(userAgentData ? { userAgentData } : {}),
   })
+}
+
+// Wrap the Mac-arm detection fixtures so the stubbed navigator reports a
+// desktop Mac; every detectMacArch case needs that base.
+function stubMacNavigator(
+  overrides: Omit<Parameters<typeof stubNavigator>[0], 'userAgent'> = {}
+) {
+  stubNavigator({ userAgent: MAC_UA, platform: 'MacIntel', ...overrides })
 }
 
 afterEach(() => {
@@ -96,5 +113,32 @@ describe('detectPlatform', () => {
   it('refuses to guess on a desktop it does not recognise', () => {
     stubNavigator({ userAgent: LINUX_UA, platform: 'Linux x86_64' })
     expect(detectPlatform()).toBeNull()
+  })
+})
+
+describe('detectMacArch', () => {
+  it('returns null when the visitor is not on a Mac', async () => {
+    stubNavigator({ userAgent: WIN_UA, platform: 'Win32' })
+    await expect(detectMacArch()).resolves.toBeNull()
+  })
+
+  it('defaults to arm64 when no high-entropy API exists', async () => {
+    stubMacNavigator()
+    await expect(detectMacArch()).resolves.toBe('arm64')
+  })
+
+  it('defaults to arm64 when getHighEntropyValues rejects', async () => {
+    stubMacNavigator({ userAgentDataArchitecture: null })
+    await expect(detectMacArch()).resolves.toBe('arm64')
+  })
+
+  it('picks x64 for an Intel Mac', async () => {
+    stubMacNavigator({ userAgentDataArchitecture: 'x86' })
+    await expect(detectMacArch()).resolves.toBe('x64')
+  })
+
+  it('defaults to arm64 for an arm or unknown architecture value', async () => {
+    stubMacNavigator({ userAgentDataArchitecture: 'arm' })
+    await expect(detectMacArch()).resolves.toBe('arm64')
   })
 })

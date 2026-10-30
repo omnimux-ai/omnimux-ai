@@ -46,11 +46,14 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "icon.png",
-      "identity": null,
-      "hardenedRuntime": false,
+      "identity": "Developer ID Application: Yuhang Zhong (XXK6GHRZ44)",
+      "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.plist",
+      "notarize": {
+        "keychainProfile": "AC_PASSWORD"
+      },
       "target": [
         "dmg",
         "zip"

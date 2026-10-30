@@ -77,6 +77,13 @@ export const zhTW: LandingCopy = {
     sendAria: '在桌面版開始',
     dlMac: '下載 macOS 版',
     dlWin: '下載 Windows 版',
+    dlMenuAria: '選擇下載版本',
+    dlMacArm: 'macOS（Apple 晶片）',
+    dlMacArmNote: '需要 macOS 13 或更高版本 · M1/M2/M3/M4',
+    dlMacIntel: 'macOS（Intel）',
+    dlMacIntelNote: '需要 macOS 13 或更高版本 · 2020 年前 Mac',
+    dlWinX64: 'Windows（64 位元）',
+    dlWinX64Note: '需要 Windows 10 或更高版本',
     skillsLabel: '技能',
     skillsAria: '技能',
     skills: [

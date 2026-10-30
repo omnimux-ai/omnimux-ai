@@ -19,7 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useRef, useState } from 'react'
 
 import { useCopy } from '../../i18n'
-import { REEL_MEDIA, type Mode } from './data'
+import {
+  DOWNLOAD_MAC_ARM64,
+  DOWNLOAD_MAC_X64,
+  DOWNLOAD_WIN,
+  REEL_MEDIA,
+  type Mode,
+} from './data'
 import { useDownload } from './download-context'
 import { usePrefersReducedMotion } from './hooks'
 import { Icon } from './icons'
@@ -38,7 +44,7 @@ const REEL_LAYOUT = [
 const TAB_ICONS = { agent: 'spark', video: 'video', image: 'img' } as const
 
 export function CnHero() {
-  const { open } = useDownload()
+  const { open, platform, macArch } = useDownload()
   const reduced = usePrefersReducedMotion()
   const copy = useCopy().hero
   const [mode, setMode] = useState<Mode>('agent')
@@ -46,7 +52,26 @@ export function CnHero() {
   const [focused, setFocused] = useState(false)
   const [typed, setTyped] = useState(copy.modes.agent.prompts[0])
   const [promptIndex, setPromptIndex] = useState(0)
+  const [dlOpen, setDlOpen] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const dlRef = useRef<HTMLDivElement>(null)
+
+  // The menu is a plain popover: outside clicks and Escape dismiss it.
+  useEffect(() => {
+    if (!dlOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!dlRef.current?.contains(event.target as Node)) setDlOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDlOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [dlOpen])
 
   const prompts = copy.modes[mode].prompts
   const full = prompts[promptIndex % prompts.length]
@@ -73,6 +98,12 @@ export function CnHero() {
   }, [full, focused, reduced, value])
 
   const submit = () => open()
+
+  // Unknown chip defaults to the Apple-silicon build: every Mac sold since
+  // late 2020 is arm64, and an Intel user gets a clear "cannot open" rather
+  // than a silently wrong installer.
+  let dlMainHref = macArch === 'x64' ? DOWNLOAD_MAC_X64 : DOWNLOAD_MAC_ARM64
+  if (platform === 'win') dlMainHref = DOWNLOAD_WIN
 
   return (
     <section className='hero' id='top'>
@@ -179,22 +210,64 @@ export function CnHero() {
         </div>
 
         <div className='hero-dl'>
-          <button
-            className='btn btn-sm btn-primary'
-            type='button'
-            onClick={() => open('mac')}
+          <div
+            className={`split-dl${dlOpen ? ' open' : ''}`}
+            ref={dlRef}
           >
-            <Icon name='apple' filled />
-            {copy.dlMac}
-          </button>
-          <button
-            className='btn btn-sm btn-ghost'
-            type='button'
-            onClick={() => open('win')}
-          >
-            <Icon name='win' filled />
-            {copy.dlWin}
-          </button>
+            <a
+              className='split-main'
+              href={dlMainHref}
+            >
+              <svg
+                aria-hidden='true'
+                fill='none'
+                height='16'
+                viewBox='0 0 16 16'
+                width='16'
+              >
+                <path
+                  d='M15.3695 11.411L15.1234 12.8866C14.8869 14.3042 13.6603 15.3436 12.223 15.3436H3.77673C2.33958 15.3434 1.1128 14.3042 0.876343 12.8866L0.630249 11.411L2.05408 11.1747L2.29919 12.6493C2.41973 13.3713 3.04475 13.9001 3.77673 13.9003H12.223C12.9551 13.9002 13.58 13.3713 13.7006 12.6493L13.9457 11.1747L15.3695 11.411ZM8.72205 8.994C8.77717 8.93934 8.83792 8.88106 8.90271 8.81627L12.4828 5.23424L13.5043 6.25572L9.92224 9.8358C9.6395 10.1185 9.38763 10.3732 9.15857 10.5575C8.91892 10.7503 8.63953 10.9224 8.2865 10.9784C8.09711 11.0083 7.90363 11.0083 7.71423 10.9784C7.36106 10.9224 7.0809 10.7503 6.84119 10.5575C6.61215 10.3732 6.36022 10.1185 6.07751 9.8358L2.49646 6.25572L3.51697 5.23424L7.09705 8.81627C7.16219 8.88142 7.22331 8.94006 7.27869 8.99498V1.3065H8.72205V8.994Z'
+                  fill='currentColor'
+                />
+              </svg>
+              {platform === 'win' ? copy.dlWin : copy.dlMac}
+            </a>
+            <button
+              aria-expanded={dlOpen}
+              aria-haspopup='menu'
+              aria-label={copy.dlMenuAria}
+              className='split-caret'
+              type='button'
+              onClick={() => setDlOpen((v) => !v)}
+            >
+              <svg
+                aria-hidden='true'
+                fill='none'
+                height='14'
+                viewBox='0 0 14 14'
+                width='14'
+              >
+                <path
+                  d='M11.8486 5.5L11.4238 5.92383L8.69727 8.65137C8.44157 8.90706 8.21562 9.13382 8.01172 9.29785C7.79912 9.46883 7.55595 9.61756 7.25 9.66602C7.08435 9.69222 6.91565 9.69222 6.75 9.66602C6.44405 9.61756 6.20088 9.46883 5.98828 9.29785C5.78438 9.13382 5.55843 8.90706 5.30273 8.65137L2.57617 5.92383L2.15137 5.5L3 4.65137L3.42383 5.07617L6.15137 7.80273C6.42595 8.07732 6.59876 8.24849 6.74023 8.3623C6.87291 8.46904 6.92272 8.47813 6.9375 8.48047C6.97895 8.48703 7.02105 8.48703 7.0625 8.48047C7.07728 8.47813 7.12709 8.46904 7.25977 8.3623C7.40124 8.24849 7.57405 8.07732 7.84863 7.80273L10.5762 5.07617L11 4.65137L11.8486 5.5Z'
+                  fill='currentColor'
+                />
+              </svg>
+            </button>
+            <div className='split-menu' role='menu'>
+              <a className='split-item' href={DOWNLOAD_MAC_ARM64} role='menuitem'>
+                <span className='t'>{copy.dlMacArm}</span>
+                <span className='n'>{copy.dlMacArmNote}</span>
+              </a>
+              <a className='split-item' href={DOWNLOAD_MAC_X64} role='menuitem'>
+                <span className='t'>{copy.dlMacIntel}</span>
+                <span className='n'>{copy.dlMacIntelNote}</span>
+              </a>
+              <a className='split-item' href={DOWNLOAD_WIN} role='menuitem'>
+                <span className='t'>{copy.dlWinX64}</span>
+                <span className='n'>{copy.dlWinX64Note}</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 

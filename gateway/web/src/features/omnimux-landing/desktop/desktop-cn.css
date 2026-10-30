@@ -188,6 +188,25 @@ For commercial licensing, please contact support@quantumnous.com
 .omc .skill .ico {width:15px;height:15px;color:var(--fg-2)}
 .omc .hero-dl {display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:26px}
 .omc .hero-dl small {width:100%;color:var(--fg-3);font-size:13px}
+/* split download pill: one-button default (auto-detect) + caret menu for
+   the three installers. Geometry/shadow ported 1:1 from the approved
+   deepseek.com/en/harness button; class names prefixed split-* because
+   .dl-* is already taken by the download dialog below. */
+.omc .split-dl {position:relative;display:inline-flex;align-items:stretch;justify-content:center;background:#fff;color:#0a0a0a;border-radius:100px;height:44px;font-size:15px;font-weight:500;overflow:visible;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.omc .split-main {display:inline-flex;align-items:center;gap:8px;padding:0 16px 0 20px;border:none;background:none;color:inherit;font:inherit;font-weight:500;cursor:pointer;border-radius:100px 0 0 100px;text-decoration:none}
+.omc .split-main:hover {background:rgba(0,0,0,.05)}
+.omc .split-main svg {width:16px;height:16px;display:inline-flex}
+.omc .split-caret {display:inline-flex;align-items:center;justify-content:center;width:44px;border:none;background:none;color:inherit;cursor:pointer;border-radius:0 100px 100px 0;position:relative}
+.omc .split-caret::before {content:'';position:absolute;left:0;top:10px;bottom:10px;width:1px;background:rgba(0,0,0,.12)}
+.omc .split-caret:hover {background:rgba(0,0,0,.05)}
+.omc .split-caret svg {width:14px;height:14px;transition:transform .2s}
+.omc .split-dl.open .split-caret svg {transform:rotate(180deg)}
+.omc .split-menu {position:absolute;top:calc(100% + 10px);right:0;min-width:100%;background:#fff;color:#0f1115;border-radius:12px;padding:4px;box-shadow:0 0 1px rgba(0,0,0,.2),0 0 4px rgba(0,0,0,.02),0 12px 32px rgba(0,0,0,.14);text-align:left;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:40}
+.omc .split-dl.open .split-menu {opacity:1;transform:translateY(0);pointer-events:auto}
+.omc .split-item {display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:8px;cursor:pointer;text-decoration:none;color:inherit;text-align:left;white-space:nowrap}
+.omc .split-item:hover {background:#f3f4f6}
+.omc .split-item .t {font-size:15px;font-weight:400}
+.omc .split-item .n {font-size:13px;color:#71717a}
 .omc .reel {display:flex;justify-content:center;align-items:flex-start;gap:clamp(8px,1.1vw,16px);margin-top:clamp(48px,6vw,72px);padding-bottom:24px;perspective:1400px}
 .omc .reel-card {--w:clamp(118px,11.2vw,172px);position:relative;flex:none;width:var(--w);aspect-ratio:9/16;border-radius:18px;overflow:hidden;background:var(--panel-2);border:1px solid var(--hair-2);box-shadow:0 30px 60px -28px rgba(0,0,0,.9);transform:translateY(var(--y,0)) rotate(var(--r,0deg));animation:fly 1s cubic-bezier(.2,.75,.2,1) both;animation-delay:calc(var(--i) * 80ms + 150ms)}
 .omc .reel-card video,

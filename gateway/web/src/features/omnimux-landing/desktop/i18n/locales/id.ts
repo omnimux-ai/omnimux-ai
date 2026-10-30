@@ -81,6 +81,13 @@ export const id: LandingCopy = {
     sendAria: 'Mulai di desktop',
     dlMac: 'Unduh untuk macOS',
     dlWin: 'Unduh untuk Windows',
+    dlMenuAria: 'Pilih versi unduhan',
+    dlMacArm: 'macOS (Apple Silicon)',
+    dlMacArmNote: 'Memerlukan macOS 13 atau lebih baru · M1/M2/M3/M4',
+    dlMacIntel: 'macOS (Intel)',
+    dlMacIntelNote: 'Memerlukan macOS 13 atau lebih baru · Mac sebelum 2020',
+    dlWinX64: 'Windows (64-bit)',
+    dlWinX64Note: 'Memerlukan Windows 10 atau lebih baru',
     skillsLabel: 'Skill',
     skillsAria: 'Skill',
     skills: [

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -99,7 +100,8 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		paymentError(c, common.NewMessage("User does not exist"))
 		return
 	}
-	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
+	// 预设档位折扣只降低实付金额，发放的积分仍按 req.Amount 计算。
+	chargedMoney := getStripePayMoney(float64(req.Amount), user.Group)
 	if rejectInvalidCreditedQuota(c, id,
 		decimal.NewFromFloat(chargedMoney).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
 	) {
@@ -109,14 +111,14 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "ref_" + common.Sha1([]byte(reference))
 
-	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, req.SuccessURL, req.CancelURL)
+	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, stripeChargeUnits(chargedMoney), req.SuccessURL, req.CancelURL)
 	// Test→Live switch leaves a test-mode customer id on the user; live keys reject it.
 	// Clear the stale binding and retry once without a customer so Checkout can create a live one.
 	if err != nil && user.StripeCustomer != "" && strings.Contains(err.Error(), "No such customer") {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe customer 无效，清除后重试 user_id=%d customer=%s error=%q", id, user.StripeCustomer, err.Error()))
 		_ = model.DB.Model(&model.User{}).Where("id = ?", id).Update("stripe_customer", "").Error
 		user.StripeCustomer = ""
-		payLink, err = genStripeLink(referenceId, "", user.Email, req.Amount, req.SuccessURL, req.CancelURL)
+		payLink, err = genStripeLink(referenceId, "", user.Email, stripeChargeUnits(chargedMoney), req.SuccessURL, req.CancelURL)
 	}
 	if err != nil {
 		logger.LogError(c.Request.Context(), common.LogText("Stripe failed to create Checkout Session user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
@@ -410,13 +412,21 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 	return result.URL, nil
 }
 
-func GetChargedAmount(count float64, user model.User) float64 {
-	topUpGroupRatio := common.GetTopupGroupRatio(user.Group)
-	if topUpGroupRatio == 0 {
-		topUpGroupRatio = 1
+// stripeChargeUnits converts the payable money into the number of configured
+// Stripe price units to charge. Preset discounts live in the money amount, so
+// the checkout quantity has to be derived from it rather than from the requested
+// credit amount; otherwise the session charges list price while the wallet
+// shows the discounted one.
+func stripeChargeUnits(payMoney float64) int64 {
+	unitPrice := setting.StripeUnitPrice
+	if unitPrice <= 0 {
+		unitPrice = 1
 	}
-
-	return count * topUpGroupRatio
+	units := int64(math.Round(payMoney / unitPrice))
+	if units < 1 {
+		units = 1
+	}
+	return units
 }
 
 func getStripeCreditedQuota(amount int64, group string) decimal.Decimal {

@@ -57,15 +57,16 @@ describe('Influencer landing copy contracts', () => {
     }
   })
 
-  test('billing copy offers optional plans and top-ups without promising every quote', () => {
-    assert.equal(enMap['influencer_landing.hero.perk.payPerImage'], 'Pay per use, optional subscriptions')
-    assert.equal(zhMap['influencer_landing.hero.perk.payPerImage'], '按次使用，可选订阅')
+  test('billing copy sells top-ups only, with no residual subscription claim', () => {
+    assert.equal(enMap['influencer_landing.hero.perk.payPerImage'], 'Pay per use, volume discounts')
+    assert.equal(zhMap['influencer_landing.hero.perk.payPerImage'], '按次使用，充得多更便宜')
     for (const map of [enMap, zhMap]) {
       const answer = String(map['influencer_landing.faq.a2'])
-      assert.match(answer, /subscription|订阅/)
       assert.match(answer, /top up|充值/)
       assert.match(answer, /wallet|钱包/)
-      assert.doesNotMatch(answer, /no subscription|没有订阅|shown before|生成前.*价格/i)
+      // 套餐已下线：不得再出现订阅/套餐分支。
+      assert.doesNotMatch(answer, /subscription|订阅|套餐|plan/i)
+      assert.doesNotMatch(answer, /no subscription|shown before|生成前.*价格/i)
     }
   })
 
@@ -88,12 +89,11 @@ describe('Influencer landing copy contracts', () => {
     for (const locale of ['en', 'zh', 'zh-TW', 'fr', 'ja', 'ru', 'vi']) {
       const map = JSON.parse(readFileSync(path.join(localeDir, `${locale}.json`), 'utf-8')).translation as TranslationMap
       const pricingKeys = [
-        'Optional plans or prepaid credits',
         'Check prices and wallet allowances',
         'Review generation history',
         'Failed tasks return generation credits',
-        'Choose an optional plan or top up and pay per generation. This catalog lists {{count}} available models; prices and allowances follow your wallet settings.',
-        'Choose an optional plan or top up and pay per generation. Check current prices and allowances in your wallet.',
+        'Top up and pay per generation. This catalog lists {{count}} available models; prices and allowances follow your wallet settings.',
+        'Top up and pay per generation. Check current prices and allowances in your wallet.',
       ]
       const guideKeys = [
         'Guides',
@@ -228,27 +228,23 @@ describe('Influencer landing copy contracts', () => {
     }
   })
 
-  test('pricing CTAs route by auth state and keep preserved intent for checkout', () => {
+  test('pricing CTA routes to the wallet top-up surface by auth state', () => {
     const src = readSrc('components/influencer/pricing-faq-final.tsx')
     assert.ok(
       src.includes('useAuthStore'),
-      'pricing section must observe auth state to determine sign-in vs checkout routing'
+      'pricing section must observe auth state to determine sign-in vs wallet routing'
     )
     assert.ok(
-      src.includes('planDestination'),
-      'pricing section must calculate destination per tier'
-    )
-    assert.ok(
-      src.includes('payPerCallDestination'),
-      'pay-per-call note must provide an active navigation destination'
-    )
-    assert.ok(
-      src.includes('/wallet?plan='),
-      'subscription tiers must navigate directly to the wallet subscription surface'
+      src.includes('/wallet#wallet-add-funds'),
+      'signed-in visitors must land on the wallet top-up form'
     )
     assert.ok(
       src.includes('/sign-in?redirect='),
-      'unauthenticated users must receive a return redirect to complete checkout seamlessly'
+      'unauthenticated visitors must receive a return redirect to the wallet'
+    )
+    assert.ok(
+      !src.includes('/wallet?plan='),
+      'subscription checkout routing must be gone now that plans are disabled'
     )
   })
 })

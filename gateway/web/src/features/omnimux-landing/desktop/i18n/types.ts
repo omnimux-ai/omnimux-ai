@@ -201,6 +201,13 @@ export interface LandingCopy {
     sendAria: string
     dlMac: string
     dlWin: string
+    dlMenuAria: string
+    dlMacArm: string
+    dlMacArmNote: string
+    dlMacIntel: string
+    dlMacIntelNote: string
+    dlWinX64: string
+    dlWinX64Note: string
     skillsLabel: string
     skillsAria: string
     skills: readonly { icon: IconName; label: string; fill: string }[]

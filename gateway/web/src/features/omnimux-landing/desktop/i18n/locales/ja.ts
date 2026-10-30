@@ -78,6 +78,13 @@ export const ja: LandingCopy = {
     sendAria: 'デスクトップで開始',
     dlMac: 'macOS 版をダウンロード',
     dlWin: 'Windows 版をダウンロード',
+    dlMenuAria: 'ダウンロード版を選択',
+    dlMacArm: 'macOS（Apple シリコン）',
+    dlMacArmNote: 'macOS 13 以降が必要 · M1/M2/M3/M4',
+    dlMacIntel: 'macOS（Intel）',
+    dlMacIntelNote: 'macOS 13 以降が必要 · 2020 年以前の Mac',
+    dlWinX64: 'Windows（64 ビット）',
+    dlWinX64Note: 'Windows 10 以降が必要',
     skillsLabel: 'スキル',
     skillsAria: 'スキル',
     skills: [

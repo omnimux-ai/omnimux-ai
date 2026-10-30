@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -29,11 +29,9 @@ import {
 } from '@/components/ui/accordion'
 import { fetchPricing } from '@/features/influencer/api'
 import { imageModels, quoteCredits } from '@/features/influencer/lib/catalog'
-import {
-  PLAN_TIER_IDS,
-  planTierName,
-} from '@/features/subscriptions/lib/plan-tier'
+import { TOPUP_LADDER } from '@/features/pricing/constants'
 import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { WORK_LOOKS } from '../../lib/influencer-looks'
@@ -63,24 +61,16 @@ function useBestPrice(): {
 }
 
 /**
- * The three plans sold on the price page, mirroring the live subscription
- * plans. The list itself comes from the wallet's shared tier module so both
- * surfaces name the same tiers.
- */
-const PLAN_TIERS = PLAN_TIER_IDS
-
-/** Generation credits each plan grants, matching the live subscription plans. */
-const CREDITS: Record<string, number> = { discovery: 40, starter: 160, creator: 450 }
-
-/**
- * Subscription pricing: one-time trial plus two monthly plans, with the annual
- * toggle showing the discounted month and the amount billed once a year.
+ * Pay-as-you-go pricing: the same preset top-up ladder sold in the wallet.
+ * Reading the shared ladder keeps this surface from advertising a discount the
+ * backend does not honour (a regression test pins it to the canonical ops file).
  */
 export function InfluencerPricing() {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const [annual, setAnnual] = useState(false)
   const price = useBestPrice()
+  const { auth } = useAuthStore()
+  const isAuthenticated = !!auth.user
 
   const usd = (value: number) =>
     Intl.NumberFormat(locale, {
@@ -89,81 +79,9 @@ export function InfluencerPricing() {
       maximumFractionDigits: value % 1 === 0 ? 0 : 2,
     }).format(value)
 
-  const annualPrices: Record<string, number> = {
-    starter: 19.92,
-    creator: 47.17,
-  }
-  const annualBilled: Record<string, number> = { starter: 239, creator: 566 }
-  const monthlyPrices: Record<string, number> = { starter: 24.99, creator: 59 }
-
-  /**
-   * Literal keys per tier: the i18n extractor only registers t('…') literals.
-   * The tier *name* is not here — it comes from the wallet's shared
-   * plan-tier module (planTierName) so both surfaces show the same name.
-   */
-  const copy = {
-    discovery: {
-      cta: t('influencer_landing.pricing.plan.discovery.cta'),
-      note: t('influencer_landing.pricing.plan.discovery.note'),
-    },
-    starter: {
-      cta: t('influencer_landing.pricing.plan.starter.cta'),
-    },
-    creator: {
-      cta: t('influencer_landing.pricing.plan.creator.cta'),
-    },
-  }
-
-  /** Per-tier call discount while the subscription is active: 10% off is 9 折. */
-  const DISCOUNTS: Record<string, string> = {
-    starter: t('influencer_landing.pricing.plan.starter.discount'),
-    creator: t('influencer_landing.pricing.plan.creator.discount'),
-  }
-
-  /** Annual view shows the discounted month; otherwise the plain monthly price. */
-  function shownPrice(tier: string): number {
-    if (annual && annualPrices[tier]) return annualPrices[tier]
-    return monthlyPrices[tier] ?? 0
-  }
-
-  const { auth } = useAuthStore()
-  const isAuthenticated = !!auth.user
-
-  /** The line under the price: trial copy, annual total, or the monthly note. */
-  function billingNote(tier: string): string {
-    if (tier === 'discovery') {
-      return copy.discovery.note
-    }
-    if (annual) {
-      return t('influencer_landing.pricing.billedAnnually', {
-        amount: usd(annualBilled[tier]),
-      })
-    }
-    return t('influencer_landing.pricing.billedMonthly')
-  }
-
-  /**
-   * Destination logic based on user authentication state:
-   * - discovery: direct to workbench if signed-in, or sign-in with return URL
-   * - subscription tiers: direct to wallet subscription checkout if signed-in,
-   *   or sign-in with preserved checkout intent
-   */
-  function planDestination(tier: string): string {
-    const period = annual ? 'annual' : 'monthly'
-    if (tier === 'discovery') {
-      return isAuthenticated
-        ? '/influencer'
-        : `/sign-in?redirect=${encodeURIComponent('/influencer')}`
-    }
-    const target = `/wallet?plan=${tier}&period=${period}`
-    return isAuthenticated
-      ? target
-      : `/sign-in?redirect=${encodeURIComponent(target)}`
-  }
-
-  const payPerCallDestination = isAuthenticated
-    ? '/influencer'
-    : `/sign-in?redirect=${encodeURIComponent('/influencer')}`
+  const walletDestination = isAuthenticated
+    ? '/wallet#wallet-add-funds'
+    : `/sign-in?redirect=${encodeURIComponent('/wallet')}`
 
   return (
     <section className='inf-pricing' id='pricing'>
@@ -173,99 +91,33 @@ export function InfluencerPricing() {
             {t('influencer_landing.pricing.eyebrow')}
           </p>
           <h2 className='inf-h2'>{t('influencer_landing.pricing.title')}</h2>
-          <p className='inf-sub'>{t('influencer_landing.pricing.sub')}</p>
         </Reveal>
 
-        <Reveal className='inf-plan-toggle' delay={80}>
-          <button
-            type='button'
-            className='inf-plan-switch'
-            aria-pressed={!annual}
-            onClick={() => setAnnual(false)}
-          >
-            {t('influencer_landing.pricing.monthly')}
-          </button>
-          <button
-            type='button'
-            className='inf-plan-switch'
-            aria-pressed={annual}
-            onClick={() => setAnnual(true)}
-          >
-            {t('influencer_landing.pricing.annual')}
-            <span className='inf-plan-save'>
-              {t('influencer_landing.pricing.save')}
-            </span>
-          </button>
-        </Reveal>
-
-        <div className='inf-plan-grid'>
-          {PLAN_TIERS.map((tier, index) => {
-            const isTrial = tier === 'discovery'
-            const isPopular = tier === 'starter'
-            const credits = CREDITS[tier]
-            const priceText = isTrial ? usd(9.99) : usd(shownPrice(tier))
-            const unitText = isTrial
-              ? t('influencer_landing.pricing.once')
-              : t('influencer_landing.pricing.perMonth')
+        <div className='inf-ladder'>
+          {TOPUP_LADDER.map((rung, index) => {
+            const offPercent = Math.round((1 - rung.discount) * 100)
             return (
               <Reveal
-                key={tier}
+                key={rung.amountUsd}
                 className={
-                  isPopular ? 'inf-plan-card is-popular' : 'inf-plan-card'
+                  offPercent > 0 ? 'inf-rung is-discounted' : 'inf-rung'
                 }
-                delay={120 + index * 60}
+                delay={80 + index * 50}
               >
-                {isPopular ? (
-                  <span className='inf-plan-tag'>
-                    {t('influencer_landing.pricing.popular')}
+                <span className='inf-rung-credits'>
+                  {formatNumber(rung.credits, locale)}
+                </span>
+                <span className='inf-rung-unit'>
+                  {t('influencer_landing.pricing.credits')}
+                </span>
+                {offPercent > 0 ? (
+                  <span className='inf-rung-save'>
+                    {t('Save {{percent}}%', { percent: offPercent })}
                   </span>
                 ) : null}
-                <h3 className='inf-plan-name'>{planTierName(tier, t)}</h3>
-                <p className='inf-plan-price'>
-                  <span className='inf-plan-amount'>{priceText}</span>
-                  <span className='inf-plan-unit'>{unitText}</span>
-                </p>
-                <p className='inf-plan-billed'>{billingNote(tier)}</p>
-                <p className='inf-plan-credits'>
-                  <span className='inf-plan-credits-num'>{credits}</span>
-                  <span className='inf-plan-credits-label'>
-                    {t('influencer_landing.pricing.credits')}
-                  </span>
-                </p>
-                {DISCOUNTS[tier] ? (
-                  <p className='inf-plan-discount'>{DISCOUNTS[tier]}</p>
-                ) : null}
-                <ul className='inf-price-feats'>
-                  <li>
-                    <span className='inf-check' aria-hidden='true'>
-                      ✓
-                    </span>
-                    {t('influencer_landing.pricing.feature.video')}
-                  </li>
-                  <li>
-                    <span className='inf-check' aria-hidden='true'>
-                      ✓
-                    </span>
-                    {t('influencer_landing.pricing.feature.character')}
-                  </li>
-                  <li>
-                    <span className='inf-check' aria-hidden='true'>
-                      ✓
-                    </span>
-                    {t('influencer_landing.pricing.feature.refund')}
-                  </li>
-                  <li>
-                    <span className='inf-check' aria-hidden='true'>
-                      ✓
-                    </span>
-                    {isTrial
-                      ? t('influencer_landing.pricing.feature.noSubscription')
-                      : t('influencer_landing.pricing.feature.cancel')}
-                  </li>
-                </ul>
-                <Link to={planDestination(tier)} className='omx-btn-primary'>
-                  {copy[tier].cta}
-                </Link>
+                <span className='inf-rung-usd'>
+                  {`$${formatNumber(rung.amountUsd, locale)}`}
+                </span>
               </Reveal>
             )
           })}
@@ -273,14 +125,45 @@ export function InfluencerPricing() {
 
         <Reveal delay={300}>
           <p className='inf-price-note'>
-            <Link to={payPerCallDestination} className='inf-price-note-link'>
-              {price
-                ? t('influencer_landing.pricing.payPerCall', {
-                    usd: usd(price.usd),
-                  })
-                : t('influencer_landing.pricing.note')}
-            </Link>
+            {price
+              ? t('influencer_landing.pricing.usd', { usd: usd(price.usd) })
+              : t('influencer_landing.pricing.fallback')}
           </p>
+        </Reveal>
+
+        <Reveal className='inf-ladder-cta' delay={360}>
+          <Link to={walletDestination} className='omx-btn-primary'>
+            {t('Top up credits')}
+          </Link>
+        </Reveal>
+
+        <Reveal delay={420}>
+          <ul className='inf-price-feats inf-price-feats-row'>
+            <li>
+              <span className='inf-check' aria-hidden='true'>
+                ✓
+              </span>
+              {t('influencer_landing.pricing.feature.character')}
+            </li>
+            <li>
+              <span className='inf-check' aria-hidden='true'>
+                ✓
+              </span>
+              {t('influencer_landing.pricing.feature.preview')}
+            </li>
+            <li>
+              <span className='inf-check' aria-hidden='true'>
+                ✓
+              </span>
+              {t('influencer_landing.pricing.feature.video')}
+            </li>
+            <li>
+              <span className='inf-check' aria-hidden='true'>
+                ✓
+              </span>
+              {t('influencer_landing.pricing.feature.refund')}
+            </li>
+          </ul>
         </Reveal>
       </div>
     </section>

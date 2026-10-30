@@ -20,6 +20,8 @@ import { createContext, useContext } from 'react'
 
 export type DownloadTarget = 'mac' | 'win'
 
+export type MacArch = 'arm64' | 'x64'
+
 /**
  * `null` means the visitor is on a platform we cannot pick an installer for
  * (mobile, unknown, or a UA we do not trust). Callers fall back to the dialog
@@ -35,9 +37,16 @@ export const DownloadContext = createContext<{
    * Single download buttons use it to fetch the right installer directly.
    */
   platform: DetectedPlatform
+  /**
+   * The Mac chip this visit most likely needs, resolved after mount.
+   * `null` while detection is still running or when the visitor is not on a
+   * Mac; callers fall back to the Apple-silicon build, which is the common
+   * case.
+   */
+  macArch: MacArch | null
   /** Starts the installer download for `platform`; false when unknown. */
   downloadDirect: () => boolean
-}>({ open: () => {}, platform: null, downloadDirect: () => false })
+}>({ open: () => {}, platform: null, macArch: null, downloadDirect: () => false })
 
 export function useDownload() {
   return useContext(DownloadContext)

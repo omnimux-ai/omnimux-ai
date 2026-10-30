@@ -60,6 +60,10 @@ import vfx from '../../assets/cn/tpl/vfx.mp4'
 
 export const DOWNLOAD_MAC =
   'https://dl.omnimux.ai/releases/latest/OmniMux-universal.dmg'
+export const DOWNLOAD_MAC_ARM64 =
+  'https://dl.omnimux.ai/releases/latest/OmniMux-arm64.dmg'
+export const DOWNLOAD_MAC_X64 =
+  'https://dl.omnimux.ai/releases/latest/OmniMux-x64.dmg'
 export const DOWNLOAD_WIN =
   'https://dl.omnimux.ai/releases/latest/OmniMux-x64-Setup.exe'
 

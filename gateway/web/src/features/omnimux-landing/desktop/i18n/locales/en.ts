@@ -80,6 +80,13 @@ export const en: LandingCopy = {
     sendAria: 'Start on desktop',
     dlMac: 'Download for macOS',
     dlWin: 'Download for Windows',
+    dlMenuAria: 'Choose download version',
+    dlMacArm: 'macOS (Apple Silicon)',
+    dlMacArmNote: 'Requires macOS 13 or later · M1/M2/M3/M4',
+    dlMacIntel: 'macOS (Intel)',
+    dlMacIntelNote: 'Requires macOS 13 or later · pre-2020 Mac',
+    dlWinX64: 'Windows (64-bit)',
+    dlWinX64Note: 'Requires Windows 10 or later',
     skillsLabel: 'Skills',
     skillsAria: 'Skills',
     skills: [

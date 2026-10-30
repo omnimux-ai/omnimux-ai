@@ -21,6 +21,11 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { zhCN } from '../../i18n/locales/zh-CN'
+import {
+  DOWNLOAD_MAC_ARM64,
+  DOWNLOAD_MAC_X64,
+  DOWNLOAD_WIN,
+} from '../cn/data'
 import { CnFaq } from '../cn/faq'
 import { CnHero } from '../cn/hero'
 import { CnProof } from '../cn/proof'
@@ -65,5 +70,64 @@ describe('desktop CN hero composer', () => {
 
     await user.click(screen.getByRole('tab', { name: zhCN.hero.tabs.agent }))
     expect(hint()).toBeNull()
+  })
+})
+
+describe('desktop CN hero split download', () => {
+  const openMenu = async () => {
+    const user = userEvent.setup()
+    render(<CnHero />)
+    const caret = screen.getByRole('button', { name: zhCN.hero.dlMenuAria })
+    await user.click(caret)
+    return { user, caret }
+  }
+
+  it('toggles the menu via the caret and exposes three installer links', async () => {
+    const { user, caret } = await openMenu()
+
+    expect(caret).toHaveAttribute('aria-expanded', 'true')
+    const menu = screen.getByRole('menu')
+    expect(menu).toBeTruthy()
+
+    const items = screen.getAllByRole('menuitem')
+    expect(items).toHaveLength(3)
+    expect(items[0]).toHaveAttribute('href', DOWNLOAD_MAC_ARM64)
+    expect(items[1]).toHaveAttribute('href', DOWNLOAD_MAC_X64)
+    expect(items[2]).toHaveAttribute('href', DOWNLOAD_WIN)
+
+    await user.click(caret)
+    expect(caret).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('labels each menu item with the variant name and requirement note', async () => {
+    await openMenu()
+    const items = screen.getAllByRole('menuitem')
+    expect(items[0].textContent).toContain(zhCN.hero.dlMacArm)
+    expect(items[0].textContent).toContain(zhCN.hero.dlMacArmNote)
+    expect(items[1].textContent).toContain(zhCN.hero.dlMacIntel)
+    expect(items[1].textContent).toContain(zhCN.hero.dlMacIntelNote)
+    expect(items[2].textContent).toContain(zhCN.hero.dlWinX64)
+    expect(items[2].textContent).toContain(zhCN.hero.dlWinX64Note)
+  })
+
+  it('closes the menu on Escape', async () => {
+    const { user, caret } = await openMenu()
+    await user.keyboard('{Escape}')
+    expect(caret).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('closes the menu on an outside pointerdown', async () => {
+    const { user, caret } = await openMenu()
+    // The listener lives on document; a pointerdown outside .split-dl must
+    // dismiss it even when the click lands on the page body.
+    await user.click(document.body)
+    expect(caret).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('main button defaults to the arm64 build when detection has not run', () => {
+    render(<CnHero />)
+    const main = document.querySelector<HTMLAnchorElement>('.split-main')
+    expect(main?.getAttribute('href')).toBe(DOWNLOAD_MAC_ARM64)
+    expect(main?.textContent).toBe(zhCN.hero.dlMac)
   })
 })
