@@ -1,0 +1,203 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        type: choice
+        options: [mac, win, both]
+        default: 'both'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  build-mac:
+    if: ${{ inputs.platform == 'mac' || inputs.platform == 'both' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          ref: plugins-source
+          path: omni-source
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
+        with:
+          node-version: 22.23.2
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Verify version consistency
+        run: node scripts/verify-version.mjs
+      - name: Install dependencies
+        run: corepack yarn install --immutable
+      # Next resolves its product plugins as ordinary npm dependencies, so there is no
+      # preset tree to stage. `stage:preset` belongs to the old shell and reads a plugin
+      # lifecycle registry Next never produces.
+      # No Apple signing identity is configured, and `dist:mac` refuses to run with
+      # signing disabled. The smoke target produces the same universal DMG unsigned, so
+      # users right-click → Open on first launch. Switch to `dist:mac` once a Developer
+      # ID certificate and notarization credentials are in place.
+      - name: Build macOS release (universal DMG, unsigned)
+        env:
+          OMNIMUX_PLUGINS_DIR: ${{ github.workspace }}/omni-source/plugins
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: corepack yarn workspace dsh-desktop-next dist:mac-smoke
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: OmniMux-mac
+          path: |
+            dsh-desktop-next/dist/mac-smoke/*.dmg
+            dsh-desktop-next/dist/mac-release/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  build-win:
+    if: ${{ inputs.platform == 'win' || inputs.platform == 'both' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          ref: plugins-source
+          path: omni-source
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
+        with:
+          node-version: 22.23.2
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Verify version consistency
+        run: node scripts/verify-version.mjs
+      - name: Install dependencies
+        run: corepack yarn install --immutable
+      # Same as the macOS job: Next has no preset tree to stage.
+      - name: Build Windows installer (website unsigned)
+        env:
+          OMNIMUX_PLUGINS_DIR: ${{ github.workspace }}\omni-source\plugins
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: corepack yarn workspace dsh-desktop-next dist:win
+      - name: Verify Windows installer
+        env:
+          OMNIMUX_PLUGINS_DIR: ${{ github.workspace }}\omni-source\plugins
+        run: corepack yarn workspace dsh-desktop-next check:win-package
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: OmniMux-win
+          path: |
+            dsh-desktop-next/dist/OmniMux-*.exe
+            dsh-desktop-next/dist/OmniMux-*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  # 发布到 GitHub Releases：把产物从 14 天临时 artifact 升级为持久、可追溯的
+  # 分发资产，同时是 electron-updater 自动更新链路的 feed 地基。
+  # 当前决策：Windows 以官网 unsigned NSIS 为主；Microsoft Store / Trusted Signing
+  # 付费签名路径暂停，见 docs/contracts/release-sop.md。
+  publish:
+    needs: [build-mac, build-win]
+    if: ${{ always() && (needs.build-mac.result == 'success' || needs.build-win.result == 'success') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # `secrets` is not available in a step-level `if` expression. Surface the raw
+    # values through job-level env and test for emptiness instead — a boolean
+    # expression here would compare against a string and never match.
+    env:
+      R2_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      R2_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      # The market catalog images are uploaded from the plugin source tree, so this job
+      # needs the same plugins checkout the build jobs use.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          ref: plugins-source
+          path: omni-source
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
+        with:
+          node-version: 22.23.2
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: corepack yarn install --immutable
+      - name: Download build artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Resolve version
+        id: version
+        run: |
+          tag="v$(node -p "require('./package.json').version")"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+      # The desktop updaters poll a fixed per-channel object beside the installers.
+      # Generate it before publishing so both channels carry it in the same upload.
+      - name: Generate release metadata
+        run: |
+          node scripts/build-release-metadata.mjs \
+            --version "$(node -p "require('./package.json').version")" \
+            --dir release-assets
+          node scripts/build-release-metadata.mjs \
+            --version "$(node -p "require('./dsh-desktop-next/package.json').version")" \
+            --dir release-assets
+      # Plugins ship independently of the application, so the market index is a
+      # released object of its own rather than something baked into the build.
+      - name: Generate plugin index
+        run: node scripts/build-plugin-index.mjs
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: OmniMux ${{ steps.version.outputs.tag }}
+          files: |
+            release-assets/**/*.dmg
+            release-assets/**/*.exe
+            release-assets/**/*.zip
+          fail_on_unmatched_files: false
+      - name: Sync to Cloudflare R2 (dl.omnimux.ai)
+        if: ${{ env.R2_TOKEN != '' && env.R2_ACCOUNT != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node scripts/r2-dist-sync.mjs upload --dir release-assets
+      # The market plugin ships code only; its catalog images live here. Upload them in
+      # the same release when the source tree includes them so a fresh install never hits a missing cover.
+      - name: Sync market catalog assets to R2
+        if: ${{ env.R2_TOKEN != '' && env.R2_ACCOUNT != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -d "omni-source/plugins/omnimux-market/catalog" ]; then
+            node scripts/upload-market-assets.mjs --dir omni-source/plugins/omnimux-market/catalog
+          else
+            echo "omni-source/plugins/omnimux-market/catalog not present in plugins-source branch; skipping cover sync."
+          fi
+      # Without this the publish job looks green while the CDN stayed empty.
+      - name: Report skipped R2 sync
+        if: ${{ env.R2_TOKEN == '' || env.R2_ACCOUNT == '' }}
+        run: |
+          echo "::warning::R2 sync skipped: CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not both configured."
+          echo "GitHub Release published, but dl.omnimux.ai was not updated — installed clients cannot see this release."
