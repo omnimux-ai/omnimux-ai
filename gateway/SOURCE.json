@@ -1,8 +1,8 @@
 {
   "component": "gateway",
   "source": "laozhong86/OmniMux",
-  "commit": "fcef89c9c375e9522bc37bce57a538a1630734a5",
-  "exportedFiles": 4436,
+  "commit": "a217b9ecd6e7740855974ac15b6a972fadc6e466",
+  "exportedFiles": 4440,
   "submodules": [],
-  "manifestSha256": "e743a9357c1db5218e9811b9a89c508ce696eaee51d8a07540ae805531548a89"
+  "manifestSha256": "6c4bb3b70a25f7072d71384ed4a9d867f774969c2357a58892cae75c21c68dfd"
 }
