@@ -43,6 +43,12 @@ Do not describe automatic planning, scriptwriting, voiceover production, editing
 - [Sitemap](https://omnimux.ai/sitemap.xml)
 - [Robots](https://omnimux.ai/robots.txt)
 
+## Source code
+
+- The desktop client, the plugins and the gateway source are published per release at https://github.com/omnimux-ai/omnimux-ai under AGPL-3.0. Each directory records its source revision in `SOURCE.json`.
+- What is published is source: the desktop app, the plugin set, and the gateway including its embedded landing page. The hosted service does not publish its channel credentials, pricing ledger, operations or user data.
+- OmniMux is a maintained fork of new-api by QuantumNous; that attribution is part of the licence terms and is not optional when describing the project.
+
 ## Citations and answer engines
 
 - Preferred citation: link to `https://omnimux.ai/` or the exact page (for example `https://omnimux.ai/guides/create-ai-character`) and attribute to "OmniMux".

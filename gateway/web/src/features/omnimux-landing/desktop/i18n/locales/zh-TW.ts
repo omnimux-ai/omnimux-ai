@@ -78,6 +78,7 @@ export const zhTW: LandingCopy = {
     dlMac: '下載 macOS 版',
     dlWin: '下載 Windows 版',
     dlMenuAria: '選擇下載版本',
+    ghStar: '在 GitHub 點 Star',
     dlMacArm: 'macOS（Apple 晶片）',
     dlMacArmNote: '需要 macOS 13 或更高版本 · M1/M2/M3/M4',
     dlMacIntel: 'macOS（Intel）',
@@ -665,6 +666,10 @@ export const zhTW: LandingCopy = {
     lead: '電商賣家最關心的問題',
     items: [
       {
+        q: 'OmniMux 是開源的嗎？',
+        a: '是。桌面端、外掛與閘道原始碼按版本發佈在 github.com/omnimux-ai/omnimux-ai（AGPL-3.0）。託管服務的渠道憑證、定價帳本、維運與使用者資料不在開源範圍內。',
+      },
+      {
         q: 'OmniMux Agent 能做什麼？',
         a: 'OmniMux Agent 可以分析參考影片、撰寫腳本、生成影片和圖片，並協助把內容發佈到你已經連結的平台。用日常語言說明你的商品和目標，它會為每個步驟選擇合適的工具。',
       },
@@ -795,6 +800,7 @@ export const zhTW: LandingCopy = {
       },
     ],
     powered: 'Powered by New API',
+    source: '開源倉庫',
   },
 
   toolPage: {

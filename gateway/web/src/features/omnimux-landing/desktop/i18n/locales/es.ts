@@ -82,6 +82,7 @@ export const es: LandingCopy = {
     dlMac: 'Descargar para macOS',
     dlWin: 'Descargar para Windows',
     dlMenuAria: 'Elegir versión de descarga',
+    ghStar: 'Danos una estrella en GitHub',
     dlMacArm: 'macOS (Apple Silicon)',
     dlMacArmNote: 'Requiere macOS 13 o superior · M1/M2/M3/M4',
     dlMacIntel: 'macOS (Intel)',
@@ -728,6 +729,10 @@ export const es: LandingCopy = {
     lead: 'Lo que más preguntan los vendedores de e-commerce',
     items: [
       {
+        q: '¿OmniMux es de código abierto?',
+        a: 'Sí. El cliente de escritorio, los plugins y el código del gateway se publican por versión en github.com/omnimux-ai/omnimux-ai bajo AGPL-3.0. El servicio alojado mantiene fuera de alcance las credenciales de canales, el libro de precios, la operación y los datos de usuarios.',
+      },
+      {
         q: '¿Qué puede hacer el Agent de OmniMux?',
         a: 'El Agent de OmniMux analiza vídeos de referencia, escribe guiones, genera vídeos e imágenes y ayuda a publicar en las plataformas que hayas conectado. Describe tu producto y tu objetivo en lenguaje cotidiano y elegirá la herramienta adecuada para cada paso.',
       },
@@ -862,6 +867,7 @@ export const es: LandingCopy = {
       },
     ],
     powered: 'Powered by New API',
+    source: 'Código fuente',
   },
 
   toolPage: {

@@ -62,7 +62,7 @@ describe('Influencer landing copy contracts', () => {
     assert.equal(zhMap['influencer_landing.hero.perk.payPerImage'], '按次使用，充得多更便宜')
     for (const map of [enMap, zhMap]) {
       const answer = String(map['influencer_landing.faq.a2'])
-      assert.match(answer, /top up|充值/)
+      assert.match(answer, /top up|充值/i)
       assert.match(answer, /wallet|钱包/)
       // 套餐已下线：不得再出现订阅/套餐分支。
       assert.doesNotMatch(answer, /subscription|订阅|套餐|plan/i)

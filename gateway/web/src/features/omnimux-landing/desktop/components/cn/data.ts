@@ -66,6 +66,9 @@ export const DOWNLOAD_MAC_X64 =
   'https://dl.omnimux.ai/releases/latest/OmniMux-x64.dmg'
 export const DOWNLOAD_WIN =
   'https://dl.omnimux.ai/releases/latest/OmniMux-x64-Setup.exe'
+// The public source repository. The hero links here for readers who want the
+// code before the binary; it is not a download.
+export const SOURCE_REPO = 'https://github.com/omnimux-ai/omnimux-ai'
 
 export type IconName =
   | 'flame'

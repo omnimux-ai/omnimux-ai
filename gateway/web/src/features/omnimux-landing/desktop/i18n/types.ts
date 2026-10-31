@@ -202,6 +202,7 @@ export interface LandingCopy {
     dlMac: string
     dlWin: string
     dlMenuAria: string
+    ghStar: string
     dlMacArm: string
     dlMacArmNote: string
     dlMacIntel: string
@@ -465,6 +466,7 @@ export interface LandingCopy {
     tagline: string
     columns: readonly FooterColumnCopy[]
     powered: string
+    source: string
   }
 
   toolPage: ToolPageCopy

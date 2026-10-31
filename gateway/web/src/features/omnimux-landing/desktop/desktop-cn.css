@@ -201,6 +201,12 @@ For commercial licensing, please contact support@quantumnous.com
 .omc .split-caret:hover {background:rgba(0,0,0,.05)}
 .omc .split-caret svg {width:14px;height:14px;transition:transform .2s}
 .omc .split-dl.open .split-caret svg {transform:rotate(180deg)}
+.omc .gh-star {display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:100px;background:transparent;color:var(--fg-1);border:1px solid rgba(255,255,255,.16);font-size:15px;font-weight:500;text-decoration:none;transition:border-color .18s ease,background .18s ease,transform .18s ease}
+.omc .gh-star:hover {border-color:rgba(255,255,255,.28);background:rgba(255,255,255,.06)}
+.omc .gh-star:active {transform:translateY(1px)}
+.omc .gh-star svg {width:17px;height:17px;display:inline-flex;flex:none}
+.omc .gh-star .ext {width:13px;height:13px;opacity:.55;margin-left:2px}
+.omc .gh-star:focus-visible {outline:2px solid #7cc4ff;outline-offset:3px}
 .omc .split-menu {position:absolute;top:calc(100% + 10px);right:0;min-width:100%;background:#fff;color:#0f1115;border-radius:12px;padding:4px;box-shadow:0 0 1px rgba(0,0,0,.2),0 0 4px rgba(0,0,0,.02),0 12px 32px rgba(0,0,0,.14);text-align:left;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:40}
 .omc .split-dl.open .split-menu {opacity:1;transform:translateY(0);pointer-events:auto}
 .omc .split-item {display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:8px;cursor:pointer;text-decoration:none;color:inherit;text-align:left;white-space:nowrap}

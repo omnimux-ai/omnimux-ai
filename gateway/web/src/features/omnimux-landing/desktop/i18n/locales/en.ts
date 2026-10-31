@@ -81,6 +81,7 @@ export const en: LandingCopy = {
     dlMac: 'Download for macOS',
     dlWin: 'Download for Windows',
     dlMenuAria: 'Choose download version',
+    ghStar: 'Star on GitHub',
     dlMacArm: 'macOS (Apple Silicon)',
     dlMacArmNote: 'Requires macOS 13 or later · M1/M2/M3/M4',
     dlMacIntel: 'macOS (Intel)',
@@ -706,6 +707,10 @@ export const en: LandingCopy = {
     lead: 'What e-commerce sellers ask most',
     items: [
       {
+        q: 'Is OmniMux open source?',
+        a: 'Yes. The desktop client, the plugins and the gateway source are published per release at github.com/omnimux-ai/omnimux-ai under AGPL-3.0. The hosted service keeps its channel credentials, pricing ledger, operations and user data out of scope.',
+      },
+      {
         q: 'What can the OmniMux Agent do?',
         a: 'The OmniMux Agent analyzes reference videos, writes scripts, generates videos and images, and helps publish to the platforms you have connected. Describe your product and goal in plain language and it picks the right tool for each step.',
       },
@@ -832,6 +837,7 @@ export const en: LandingCopy = {
       },
     ],
     powered: 'Powered by New API',
+    source: 'Source code',
   },
 
   toolPage: {

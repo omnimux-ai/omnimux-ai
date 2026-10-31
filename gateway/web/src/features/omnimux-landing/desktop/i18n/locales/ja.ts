@@ -79,6 +79,7 @@ export const ja: LandingCopy = {
     dlMac: 'macOS 版をダウンロード',
     dlWin: 'Windows 版をダウンロード',
     dlMenuAria: 'ダウンロード版を選択',
+    ghStar: 'GitHub で Star を付ける',
     dlMacArm: 'macOS（Apple シリコン）',
     dlMacArmNote: 'macOS 13 以降が必要 · M1/M2/M3/M4',
     dlMacIntel: 'macOS（Intel）',
@@ -699,6 +700,10 @@ export const ja: LandingCopy = {
     lead: 'EC 出品者から最も多い質問',
     items: [
       {
+        q: 'OmniMux はオープンソースですか？',
+        a: 'はい。デスクトップクライアント、プラグイン、ゲートウェイのソースはリリースごとに github.com/omnimux-ai/omnimux-ai で AGPL-3.0 のもと公開しています。ホスト版サービスのチャネル認証情報、価格台帳、運用情報、ユーザーデータは対象外です。',
+      },
+      {
         q: 'OmniMux Agent には何ができますか？',
         a: 'OmniMux Agent は参考動画の分析、台本づくり、動画・画像の生成、連携済みプラットフォームへの投稿を支援します。商品と目標を自然な言葉で伝えれば、各工程に適したツールを選びます。',
       },
@@ -833,6 +838,7 @@ export const ja: LandingCopy = {
       },
     ],
     powered: 'Powered by New API',
+    source: 'ソースコード',
   },
 
   toolPage: {

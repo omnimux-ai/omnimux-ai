@@ -82,6 +82,7 @@ export const id: LandingCopy = {
     dlMac: 'Unduh untuk macOS',
     dlWin: 'Unduh untuk Windows',
     dlMenuAria: 'Pilih versi unduhan',
+    ghStar: 'Beri bintang di GitHub',
     dlMacArm: 'macOS (Apple Silicon)',
     dlMacArmNote: 'Memerlukan macOS 13 atau lebih baru · M1/M2/M3/M4',
     dlMacIntel: 'macOS (Intel)',
@@ -707,6 +708,10 @@ export const id: LandingCopy = {
     lead: 'Yang paling sering ditanyakan penjual e-commerce',
     items: [
       {
+        q: 'Apakah OmniMux open source?',
+        a: 'Ya. Klien desktop, plugin, dan kode gateway diterbitkan per rilis di github.com/omnimux-ai/omnimux-ai dengan lisensi AGPL-3.0. Layanan terkelola tidak termasuk kredensial kanal, buku harga, operasional, dan data pengguna.',
+      },
+      {
         q: 'Apa yang bisa dilakukan OmniMux Agent?',
         a: 'OmniMux Agent menganalisis video referensi, menulis naskah, membuat video dan gambar, serta membantu mempublikasikan konten ke platform yang sudah kamu hubungkan. Jelaskan produk dan tujuanmu dengan bahasa sehari-hari, dan ia memilih alat yang tepat untuk tiap langkah.',
       },
@@ -837,6 +842,7 @@ export const id: LandingCopy = {
       },
     ],
     powered: 'Powered by New API',
+    source: 'Kode sumber',
   },
 
   toolPage: {
