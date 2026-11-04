@@ -26,3 +26,29 @@
 - id: client-hmr
   name: '@deepseek-ai/dsh-client-hmr'
   disabled: true
+# ── Features this release line does not ship ────────────────────────────────
+#
+# Each row below is paired with an entry in `runtime-file-policy.ts`'s unused
+# feature table, which keeps the package out of the payload. Both halves are
+# required: disabling only the row leaves ~450 MB of native runtime in the
+# installer, and excluding only the package makes the Host fail to resolve a
+# bundle the profile still lists. `tests/payload-exclusions.spec.ts` pins the pair.
+#
+# Office preview pulls `libreoffice-kit` (305 MB across both CPUs).
+- id: office-to-pdf
+  name: '@deepseek-ai/dsh-office-to-pdf'
+  disabled: true
+- id: skill-office
+  name: '@deepseek-ai/dsh-skill-office'
+  disabled: true
+# Voice input pulls `sherpa-onnx` (69 MB). Disabling the bundle keeps both of its
+# inner rows from mounting, so the individual rows are not named here.
+- id: voice-input
+  name: '@deepseek-ai/dsh-experimental-voice-input-bundle'
+  disabled: true
+# The Agents Anywhere bridge is the only consumer of `@dataiku/uv` (83 MB of
+# Python runtime). This line does not enable remote control, so the bridge and
+# its Python payload stay out.
+- id: agents-anywhere-bridge
+  name: '@agents-anywhere/dsh-bridge-next'
+  disabled: true

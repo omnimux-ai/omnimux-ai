@@ -34,3 +34,12 @@ it('adds the Office closure of every CPU to the unpack patterns exactly once', (
   expect(applyOfficeUnpack(single, payload, 'darwin')).toEqual(expected)
   expect(single.asarUnpack).toEqual(['**/*.node', ...expected])
 })
+
+it('adds nothing when the payload leaves the unshipped Office runtime out', () => {
+  const payload = mkdtempSync(join(tmpdir(), 'desktop-office-unpack-'))
+  roots.push(payload)
+  writeManifest(payload, 'fflate')
+  const config: { asarUnpack?: unknown } = { asarUnpack: ['**/*.node'] }
+  expect(applyOfficeUnpack(config, payload, 'darwin')).toEqual([])
+  expect(config.asarUnpack).toEqual(['**/*.node'])
+})

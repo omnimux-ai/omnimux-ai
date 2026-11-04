@@ -83,3 +83,48 @@ export function nextRuntimeFileExclusion(path: string, target: NextPackagingTarg
   if (name === '@koromix/koffi-win32-x64' && entry === 'win32_x64/koffi.lib') return 'Koffi import library'
   return undefined
 }
+
+/**
+ * Packages the shipped app does not load, excluded so their weight never reaches
+ * the installer.
+ *
+ * Each entry is a whole feature this release line does not ship:
+ *  - `dsh-office-to-pdf` / `dsh-skill-office` pull `libreoffice-kit`, 305 MB of
+ *    dual-architecture LibreOffice binaries for Office document preview.
+ *  - the voice-input bundle pulls `sherpa-onnx`, 69 MB of speech models.
+ *  - `@dataiku/uv` is the Python runtime the Agents Anywhere bridge uses; that
+ *    bridge is an optional profile bundle this line does not enable.
+ *
+ * Excluding a package here is only half the change: the matching `cordis.patch.yml`
+ * row must be disabled too, or the Host fails to resolve a bundle that the profile
+ * still lists. `dsh-desktop-next/tests/payload-exclusions.spec.ts` pins that pairing.
+ */
+const UNUSED_FEATURE_PACKAGES: readonly (readonly [RegExp, string])[] = [
+  [/^@deepseek-ai\/dsh-office-to-pdf$/u, 'Office preview is not shipped'],
+  [/^@deepseek-ai\/dsh-skill-office$/u, 'Office skill is not shipped'],
+  [/^@deepseek-ai\/libreoffice-kit(?:-|$)/u, 'LibreOffice runtime for the unshipped Office preview'],
+  [/^@deepseek-ai\/dsh-experimental-voice-input-bundle$/u, 'Voice input is not shipped'],
+  [/^@deepseek-ai\/dsh-experimental-speech-to-text(?:-|$)/u, 'Speech-to-text runtime for the unshipped voice input'],
+  [/^sherpa-onnx(?:-|$)/u, 'Speech model runtime for the unshipped voice input'],
+  [/^@dataiku\/uv(?:-|$)/u, 'Python runtime for the unshipped Agents Anywhere bridge'],
+]
+
+/**
+ * Report a package this release line deliberately does not ship.
+ * @param name - Installed package name.
+ * @returns Omission reason, or undefined when the package may ship.
+ */
+export function nextRuntimeUnusedFeatureExclusion(name: string): string | undefined {
+  for (const [pattern, reason] of UNUSED_FEATURE_PACKAGES) {
+    if (pattern.test(name)) return reason
+  }
+  return undefined
+}
+
+/**
+ * Every package name pattern the exclusion table covers, for tests and docs.
+ * @returns The patterns as source strings.
+ */
+export function nextRuntimeUnusedFeaturePatterns(): readonly string[] {
+  return UNUSED_FEATURE_PACKAGES.map(([pattern]) => pattern.source)
+}

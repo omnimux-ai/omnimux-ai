@@ -9,7 +9,8 @@ import { DesktopFrame } from '../../../dsh-plugin-desktop/src/native-ui/shared/D
 import type { DesktopBridge, DesktopPreferences, DesktopState } from '../desktop-contract.ts'
 import { installPluginControlsStyles } from '../client/plugin-controls-styles.ts'
 import './onboarding.css'
-import whaleArtwork from '../../build/app-icon.icon/Assets/DeepSeek.svg'
+import brandLogo from './assets/omnimux-logo.svg'
+import brandWordmark from './assets/omnimux-wordmark.webp'
 // Reuse the portable device family artwork and composition from the AA landing page.
 import phoneArtwork from './assets/agents-anywhere-phone.webp'
 import tabletArtwork from './assets/agents-anywhere-tablet.webp'
@@ -140,7 +141,7 @@ export function Onboarding({ state, locale, bridge }: { state: Pick<DesktopState
         </section>
         <aside className="next-onboarding-panel next-onboarding-reveal" aria-label={steps[page]}>
           {page === 0 && <div className="next-onboarding-wordmark" aria-hidden="true">
-            <span className="next-onboarding-whale" style={{ maskImage: `url("${whaleArtwork}")` }} /><span>NEXT</span>
+            <img className="next-onboarding-logo" src={brandLogo} width="136" height="136" alt="" draggable={false} /><img className="next-onboarding-brand" src={brandWordmark} width="440" height="98" alt="" draggable={false} />
           </div>}
           {page === 1 && <div className="grid w-full gap-3" aria-label={t('插件市场', 'Plugin market')}>
             <RadioGroup aria-label={t('内置插件市场', 'Built-in plugin markets')} className="next-onboarding-choice-group" value={market} disabled={disabled || !marketEnabled} onValueChange={value => { if (marketEnabled) setMarket(value as Market) }}>

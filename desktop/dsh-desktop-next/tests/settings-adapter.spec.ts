@@ -131,6 +131,30 @@ it('installs Settings left-nav scroll rules using official scrollbar tokens and 
   expect(removed).toBe(true)
 })
 
+it('puts the macOS sidebar brand row in the traffic-light band, left-aligned in full screen', () => {
+  const appended: { dataset: Record<string, string>; textContent: string; remove: () => void }[] = []
+  vi.stubGlobal('document', {
+    createElement: () => ({ dataset: {}, textContent: '', remove: () => {} }),
+    head: { append: (node: typeof appended[number]) => { appended.push(node) } },
+  })
+  installWindowStyles()
+  const css = appended[0]!.textContent
+  const expanded = "[class*='_root']:not([class*='_collapsed']) > [class*='_topStrip'] + [class*='_logoRow']"
+  const windowed = `html[data-platform='darwin']:not([data-fullscreen]) ${expanded}`
+  const rule = (selector: string) => css.slice(css.indexOf(selector)).split('}')[0]!
+  expect(css).toContain(windowed)
+  // Lifts the row into the 52px strip and clears the traffic lights.
+  expect(rule(windowed)).toMatch(/margin-top: -52px/)
+  expect(rule(windowed)).toMatch(/padding-left: 80px/)
+  // The strip keeps dragging the window but no longer intercepts the brand row beneath it.
+  expect(rule("html[data-platform='darwin'] [class*='_topStrip']")).toMatch(/pointer-events: none/)
+  expect(rule("html[data-platform='darwin'] [class*='_topStrip'] > *")).toMatch(/pointer-events: auto/)
+  // Full screen hides the traffic lights, so the brand returns to the left edge.
+  expect(rule(`html[data-platform='darwin'][data-fullscreen] ${expanded}`)).toMatch(/padding-left: 4px/)
+  // The collapsed rail is never lifted.
+  expect(css).not.toMatch(/html\[data-platform='darwin'\][^{]*(?<!_root'\]:not\(\[class\*='_collapsed'\]\) > )\[class\*='_topStrip'\] \+ \[class\*='_logoRow'\]/)
+})
+
 it('installs sidebar footer balanced grid styles and toggles the off attribute', () => {
   let css = ''
   let removed = false

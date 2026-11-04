@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { packageDirectory } from '../../dsh-plugin-desktop/scripts/package-dir.mjs'
 import { createLinuxPackageOptions, packageLinuxArtifacts } from '../../dsh-plugin-desktop/scripts/package-linux.ts'
 import { releaseMac } from '../../dsh-plugin-desktop/scripts/release-mac.ts'
+import { macReleaseArchitecture } from '../../dsh-plugin-desktop/scripts/release-mac.ts'
 import { adaptMacReleaseEnvironment, assertMacReleaseReady, withoutMacReleaseSecrets } from '../../dsh-plugin-desktop/scripts/release-preflight.ts'
 import { packageMacSmoke } from '../../dsh-plugin-desktop/scripts/package-mac.ts'
 import { createWindowsPackageOptions, packageWindowsArtifact, packageWindowsInstaller } from '../../dsh-plugin-desktop/scripts/package-win.ts'
@@ -115,6 +116,7 @@ const prepareRuntime = (platform: NodeJS.Platform = process.platform): void => {
 const mode = process.argv[2]
 const outputDir = join(desktopRoot, 'dist', mode === 'mac' ? 'mac-release' : 'mac-smoke')
 const shared = { env: process.env, platform: process.platform, desktopRoot, outputDir,
+  releaseArch: macReleaseArchitecture(process.env),
   resetOutput: () => rmSync(outputDir, { force: true, recursive: true }), run, log: console.log, prepareRuntime }
 if (mode === 'dir') {
   await prepareInterpreters()

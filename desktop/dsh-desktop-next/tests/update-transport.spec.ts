@@ -88,6 +88,24 @@ it('follows the release-service redirect and keeps the release selectors off the
   expect(Buffer.from(await settled.response.arrayBuffer()).toString()).toBe('koly')
 })
 
+it('preserves Range and If-Range headers across redirects for parallel chunk workers', async () => {
+  const pending = createArtifactRequest()(endpoint, {
+    headers: {
+      'X-DSH-Desktop-Channel': 'stable',
+      'X-DSH-Desktop-Target-Version': '2.0.21',
+      Range: 'bytes=1024-2047',
+      'If-Range': '"etag-123"',
+    },
+  })
+  harness.requests[0]!.emit('redirect', 302, 'GET', storage, {})
+  expect(harness.requests[1]!.headers.get('x-dsh-desktop-channel')).toBeUndefined()
+  expect(harness.requests[1]!.headers.get('range')).toBe('bytes=1024-2047')
+  expect(harness.requests[1]!.headers.get('if-range')).toBe('"etag-123"')
+  harness.requests[1]!.emit('response', incoming(206, 'koly'))
+  const settled = await pending
+  expect(settled.response.status).toBe(206)
+})
+
 it('refuses a redirect that leaves HTTPS or the default port before any bytes move', async () => {
   for (const target of ['http://127.0.0.1/private', 'https://www.dshdesktop.cn:8443/private']) {
     harness.requests.length = 0

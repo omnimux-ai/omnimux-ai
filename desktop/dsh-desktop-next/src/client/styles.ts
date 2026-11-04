@@ -10,6 +10,33 @@ html[data-next-material='off'][data-platform='darwin'] :has(> [data-shell-overla
   background: var(--dsw-alias-bg-base);
 }
 
+/* macOS: carry the expanded sidebar's brand row up into the 52px traffic-light
+   strip instead of leaving that strip empty above it. The strip stays the
+   window-drag surface and keeps the collapse toggle on its right; only its empty
+   area stops intercepting pointer events so the lifted brand row stays reachable.
+   Full screen hides the traffic lights, so the brand returns to the left edge;
+   the collapsed rail keeps its official layout. */
+html[data-platform='darwin'] [class*='_topStrip'] {
+  pointer-events: none;
+}
+html[data-platform='darwin'] [class*='_topStrip'] > * {
+  pointer-events: auto;
+}
+html[data-platform='darwin']:not([data-fullscreen]) [class*='_root']:not([class*='_collapsed']) > [class*='_topStrip'] + [class*='_logoRow'] {
+  height: 52px;
+  margin-top: -52px;
+  margin-right: 44px;
+  margin-bottom: 0;
+  padding-left: 80px;
+}
+html[data-platform='darwin'][data-fullscreen] [class*='_root']:not([class*='_collapsed']) > [class*='_topStrip'] + [class*='_logoRow'] {
+  height: 52px;
+  margin-top: -52px;
+  margin-right: 44px;
+  margin-bottom: 0;
+  padding-left: 4px;
+}
+
 /* Keep Settings nav items at their 40x164 geometry and scroll with the official l2 gutter. */
 body [data-shortcut-modal='settings'] > nav {
   min-height: 0;

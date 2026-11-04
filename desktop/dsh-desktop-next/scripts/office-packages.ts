@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { isAbsolute, join, relative, sep } from 'node:path'
+import { nextRuntimeUnusedFeatureExclusion } from './runtime-file-policy.ts'
 
 interface PackageManifest {
   readonly name?: string
@@ -99,6 +100,10 @@ export function officePackageDirectories(root: string, target: OfficeTarget): st
  * @returns Sorted `asarUnpack` globs relative to the application directory.
  */
 export function officeUnpackPatterns(root: string, platform: string, archs: readonly string[]): string[] {
+  // A line that does not ship Office leaves the kit out of the payload on purpose; there is nothing to unpack.
+  // Any other missing kit is still a broken payload and fails below.
+  if (!existsSync(join(root, 'node_modules', '@deepseek-ai', 'libreoffice-kit', 'package.json'))
+    && nextRuntimeUnusedFeatureExclusion('@deepseek-ai/libreoffice-kit') !== undefined) return []
   const directories = new Set<string>()
   for (const arch of archs) for (const directory of officePackageDirectories(root, { platform, arch })) directories.add(directory)
   return [...directories].sort().map(directory => `**/${relative(root, directory).split(sep).join('/')}/**/*`)

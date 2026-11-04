@@ -22,8 +22,8 @@ import { installAgentPresetResolution } from './agent-preset.ts'
 import { installCuaDriverResolution } from './cua-driver.ts'
 import { installOfficeEngineResolution } from './office-engine.ts'
 import { installSkillBadgeResolution } from './skill-badge.ts'
-import * as desktopOffice from './office.ts'
-import { resolveOfficeConfig } from './office.ts'
+import * as desktopWorkspaceDependencies from './workspace-dependencies.ts'
+import { resolveWorkspaceDependenciesConfig } from './workspace-dependencies.ts'
 
 export async function main(): Promise<void> {
   // The Host lists and reads user workspaces; see asar-archive-policy.ts.
@@ -126,12 +126,13 @@ export async function main(): Promise<void> {
   })
   process.once('disconnect', () => { void stop().catch(fatal) })
   const { ctx } = await application
-  // Office skills and the workspace dependency tool need the bundled payload; a packaged Host without it fails here.
-  const office = resolveOfficeConfig(runtimeDir, primaryRuntime, home)
-  if (office === undefined) hostLog({ source: 'host', event: 'office.unavailable', level: 'warn', fields: { source: primaryRuntime } })
+  // The workspace dependency tool needs the bundled payload; a packaged Host without it fails here.
+  // Office skills are not mounted: their packages are left out of this line's payload (runtime-file-policy.ts).
+  const dependencies = resolveWorkspaceDependenciesConfig(runtimeDir, primaryRuntime, home)
+  if (dependencies === undefined) hostLog({ source: 'host', event: 'workspace-dependencies.unavailable', level: 'warn', fields: { source: primaryRuntime } })
   else {
-    const mounted = hostOperation('host', 'office.mount', { source: office.source })
-    try { await ctx.plugin(desktopOffice, office); mounted() } catch (error) { mounted(error); throw error }
+    const mounted = hostOperation('host', 'workspace-dependencies.mount', { source: dependencies.source })
+    try { await ctx.plugin(desktopWorkspaceDependencies, dependencies); mounted() } catch (error) { mounted(error); throw error }
   }
   hostLog({ source: 'host', event: 'process.ready' })
   await send({ type: 'ready', url: ctx.connection.authenticatedUrl(`http://127.0.0.1:${ctx.webServer.port}`),

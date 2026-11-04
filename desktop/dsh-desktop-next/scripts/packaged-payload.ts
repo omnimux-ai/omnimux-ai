@@ -5,7 +5,9 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { basename as posixBasename, dirname as posixDirname } from 'node:path/posix'
 import { getRawHeader } from '@electron/asar'
-import { nextRuntimeFileExclusion, nextRuntimePackageExclusion, type NextPackagingTarget, type RuntimePackageConstraints } from './runtime-file-policy.ts'
+import { macSmokeArchitecture } from '../../dsh-plugin-desktop/scripts/mac-universal.ts'
+import { macReleaseArchitecture } from '../../dsh-plugin-desktop/scripts/release-mac.ts'
+import { nextRuntimeFileExclusion, nextRuntimePackageExclusion, nextRuntimeUnusedFeatureExclusion, type NextPackagingTarget, type RuntimePackageConstraints } from './runtime-file-policy.ts'
 import { DESKTOP_RUNTIME_FILE, parseDesktopRuntime, verifyPayload, type DesktopRuntimeDescriptor, type DesktopRuntimeFile, type NextRelease, type PayloadEntry, type PayloadSource, type VerifyPayloadOptions } from '../src/runtime-tree.ts'
 
 /** Application-relative directory holding the prepared payload that Electron Builder archives verbatim. */
@@ -13,14 +15,27 @@ export const PAYLOAD_DIR = '.desktop-build/payload'
 
 /**
  * Architectures whose native dependencies one Next package carries.
- * macOS releases are universal and the Yarn tree installs both Darwin CPU variants, so even a
- * single-architecture directory build ships both; Windows releases are x64 only.
+ * macOS universal builds carry both Darwin CPU variants, while single-architecture release or smoke
+ * builds (`DSH_MAC_RELEASE_ARCH` / `DSH_MAC_SMOKE_ARCH` = `arm64` or `x64`) prune the opposite CPU's
+ * native modules; Windows releases are x64 only.
  * @param platform - Electron platform being packaged.
  * @param hostArch - Build host architecture, used for platforms without a release target.
+ * @param env - Process environment inspected for single-architecture selection.
  * @returns Platform and architectures recorded in the payload descriptor.
  */
-export function nextPackagingTarget(platform: NodeJS.Platform, hostArch: string = process.arch): NextPackagingTarget {
-  if (platform === 'darwin') return { platform, archs: ['arm64', 'x64'] }
+export function nextPackagingTarget(
+  platform: NodeJS.Platform,
+  hostArch: string = process.arch,
+  env: NodeJS.ProcessEnv = process.env,
+): NextPackagingTarget {
+  if (platform === 'darwin') {
+    const smokeArch = macSmokeArchitecture(env)
+    const releaseArch = macReleaseArchitecture(env)
+    const arch = smokeArch !== 'universal' ? smokeArch : releaseArch
+    if (arch === 'arm64') return { platform, archs: ['arm64'] }
+    if (arch === 'x64') return { platform, archs: ['x64'] }
+    return { platform, archs: ['arm64', 'x64'] }
+  }
   if (platform === 'win32') return { platform, archs: ['x64'] }
   return { platform, archs: [hostArch] }
 }
@@ -180,10 +195,15 @@ const REQUIRED_UNPACKED = [
   // The computer-use driver resolves its platform package's manifest and hands the library beside it to the system
   // loader; the Host resolves that package to this copy.
   /^node_modules\/@trycua\/cua-driver-/u,
-  // The Office CLI and its direct dependencies run under the bundled standalone Node, which reads no archive;
-  // beforePack unpacks the complete closure, and these guard its roots.
-  /^node_modules\/@deepseek-ai\/libreoffice-kit\//u, /^node_modules\/(?:fflate|fontkit|koffi|saxes)\//u,
 ] as const
+
+/**
+ * The Office CLI and its direct dependencies run under the bundled standalone Node, which reads no archive;
+ * beforePack unpacks the complete closure, and these guard its roots. They apply only to a payload that carries
+ * the kit: a line that leaves Office out (runtime-file-policy.ts) has no CLI to run, and its other users of these
+ * packages load them in-process from the archive.
+ */
+const OFFICE_REQUIRED_UNPACKED = [/^node_modules\/@deepseek-ai\/libreoffice-kit\//u, /^node_modules\/(?:fflate|fontkit|koffi|saxes)\//u] as const
 
 /** The only entries the prepared payload places at its root. */
 const ALLOWED_ROOT_ENTRIES = new Set(['assets', 'build', 'cordis.patch.yml', DESKTOP_RUNTIME_FILE, 'host.cordis.patch.yml', 'lib', 'node_modules', 'package.json', 'scripts'])
@@ -199,6 +219,8 @@ const ALLOWED_ROOT_ENTRIES = new Set(['assets', 'build', 'cordis.patch.yml', DES
 export function auditNextPayload(source: PayloadSource, target: NextPackagingTarget): string[] {
   const problems: string[] = []
   const strayRoots = new Set<string>()
+  const requiredUnpacked = source.entry('node_modules/@deepseek-ai/libreoffice-kit/package.json') === undefined
+    ? REQUIRED_UNPACKED : [...REQUIRED_UNPACKED, ...OFFICE_REQUIRED_UNPACKED]
   for (const entry of source.list()) {
     const root = entry.path.split('/')[0] ?? ''
     if (!ALLOWED_ROOT_ENTRIES.has(root)) { strayRoots.add(root); continue }
@@ -211,13 +233,13 @@ export function auditNextPayload(source: PayloadSource, target: NextPackagingTar
         const nameParts = packageParts[0]?.startsWith('@') ? 2 : 1
         if (packageParts.length === nameParts + 1) {
           const manifest = JSON.parse(entry.read().toString('utf8')) as RuntimePackageConstraints
-          const packageReason = nextRuntimePackageExclusion(manifest, target)
+          const packageReason = nextRuntimeUnusedFeatureExclusion(packageParts.slice(0, nameParts).join('/')) ?? nextRuntimePackageExclusion(manifest, target)
           if (packageReason !== undefined) problems.push(`${entry.path}: ${packageReason} must not be packaged`)
         }
       }
     }
     if (entry.unpacked) continue
-    if (REQUIRED_UNPACKED.some(pattern => pattern.test(entry.path))) problems.push(`${entry.path}: must be unpacked beside app.asar`)
+    if (requiredUnpacked.some(pattern => pattern.test(entry.path))) problems.push(`${entry.path}: must be unpacked beside app.asar`)
     else if (isNativeImage(entry.readHeader ? entry.readHeader(4) : entry.read().subarray(0, 4))) problems.push(`${entry.path}: native code is packed inside app.asar`)
   }
   return [...[...strayRoots].sort().map(root => `${root}: outside the declared application files`), ...problems]
@@ -267,6 +289,8 @@ export function verifyNextPayload(source: PayloadSource): void {
       }
       if (found === undefined) {
         if (Object.hasOwn(data.optionalDependencies ?? {}, name)) continue
+        // Left out on purpose: the profile disables the rows that would load it (see runtime-file-policy.ts).
+        if (nextRuntimeUnusedFeatureExclusion(name) !== undefined) continue
         throw new Error(`Missing packaged dependency ${name} required by ${String(data.name)}`)
       }
       queued.push(found)

@@ -13,39 +13,38 @@ import { pluginMarketPatch } from './profile-plugin-market.ts'
 import { RETIRED_SCHEDULE_BUNDLE, retiredSchedulePatch } from './profile-schedule.ts'
 import { removeLinkProjectionsSafely } from '../../dsh-plugin-desktop/src/link-projections.ts'
 import { insideArchive, unpackedPath } from './asar-archive-policy.ts'
+import PLUGIN_TIERS from '../../config/plugin-tiers.json' with { type: 'json' }
 
 export const NEXT_PACKAGE = fileURLToPath(new URL('../package.json', import.meta.url))
 
 /**
  * Product plugins every OmniMux profile starts with.
  *
- * These ship as ordinary npm bundles rather than a preset tree, so the Host resolves
- * them from node_modules like any other package and they update independently of the
- * application. `dsh-better-sidebar` comes first because the others register their
- * shell entries through it.
+ * Read from `config/plugin-tiers.json` rather than listed here: that file is the
+ * single source of truth for which plugins ship by default, and the market index
+ * generator reads the same one. Two hand-kept lists is how a plugin ends up
+ * preinstalled while the market hides it.
  *
- * `omnimux-market` is included: its catalog images live on the CDN and the package is
- * code-only, so the 142 MB publish failure that once forced it out is gone.
+ * `dsh-better-sidebar` comes first and is `infrastructure`, not `preview`: every
+ * OmniMux plugin registers its shell entries through that service, so it is a
+ * hard preinstall rather than an optional product plugin. A tier file that
+ * dropped it would break the whole shell, which is why the schema keeps the two
+ * concepts apart.
  *
- * `omnimux-automation` is deliberately absent: upstream now ships scheduling itself
- * (`@deepseek-ai/dsh-schedule` plus its client UI and agent tools), so the OmniMux
- * duplicate is retired rather than kept as a second scheduler.
+ * The file is imported, not read at runtime: it lives at the repository root, outside the
+ * packaged payload, so a runtime read finds nothing in an installed app. The bundler inlines it.
  */
-export const OMNIMUX_PRODUCT_BUNDLES = [
-  'dsh-better-sidebar',
-  'omnimux',
-  'omnimux-accounts',
-  'omnimux-analytics',
-  'omnimux-assets',
-  'omnimux-clip',
-  'omnimux-forms',
-  'omnimux-inspiration',
-  'omnimux-market',
-  'omnimux-products',
-  'omnimux-publish',
-  'omnimux-video',
-  'omnimux-workflow',
-] as const
+const TIERS = PLUGIN_TIERS as {
+  tiers: { infrastructure: string[]; preview: string[]; beta: string[]; retired: string[] }
+}
+
+export const OMNIMUX_PRODUCT_BUNDLES: readonly string[] = [
+  ...TIERS.tiers.infrastructure,
+  ...TIERS.tiers.preview,
+]
+
+/** Plugins that must never be preinstalled: internal testing and retired builds. */
+export const OMNIMUX_WITHHELD_BUNDLES: readonly string[] = [...TIERS.tiers.beta, ...TIERS.tiers.retired]
 
 export const WEB_BUNDLES = [...new Set([...OMNIMUX_PRODUCT_BUNDLES, ...PROFILE_TEMPLATES.web!.bundles])]
 const NEXT_BUNDLE_PATCH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))

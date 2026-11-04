@@ -69,8 +69,17 @@ function requestArtifact(url: string, init: RequestInit): Promise<UpdateArtifact
       if (hops >= MAX_REDIRECTS) { fail(new Error('Too many update redirects')); return }
       hops += 1
       // Only the first hop receives the release selectors; artifact storage
-      // must not observe which release stream asked for the bytes.
+      // must not observe which release stream asked for the bytes. Range and
+      // If-Range headers pass through to storage so parallel chunk workers can
+      // request byte slices directly.
       const headers = new Headers(hops === 1 ? init.headers : { Accept: 'application/octet-stream' })
+      if (hops > 1 && init.headers !== undefined) {
+        const initialHeaders = new Headers(init.headers)
+        const range = initialHeaders.get('range')
+        const ifRange = initialHeaders.get('if-range')
+        if (range !== null) headers.set('range', range)
+        if (ifRange !== null) headers.set('if-range', ifRange)
+      }
       // Approximates the fetch `cache: 'no-store'` intent over the Chromium net stack.
       headers.set('cache-control', 'no-cache')
 

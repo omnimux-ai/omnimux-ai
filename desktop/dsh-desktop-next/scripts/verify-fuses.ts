@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { verifyElectronExecutableFuses } from '../../dsh-plugin-desktop/scripts/verify-electron-fuses.ts'
 import { withoutMacReleaseSecrets } from '../../dsh-plugin-desktop/scripts/release-preflight.ts'
 import { withoutWindowsSigningSecrets } from '../../dsh-plugin-desktop/scripts/package-win.ts'
+import { machOArchitectures, rosettaAvailable } from './primary-runtime.ts'
 import { archivedPayload, nextPackagingTarget, PAYLOAD_DIR, universalMergeRewrite, verifyNextRuntime, verifyUpdaterManifestShim } from './packaged-payload.ts'
 import { expectedNextVersion, verifyNextRuntimeTree } from './prepare-runtime.ts'
 import { verifiedPackagedResources } from './verify-packaged.ts'
@@ -81,6 +82,13 @@ async function verifyFinalArtifacts(result: { outDir: string }): Promise<string[
     if (!alreadyVerifiedByAfterPack) {
       const runtimes = verifyNextRuntimeTree(join(resources, 'runtime'), target.platform, expectedVersion)
       if (runtimes.length > 0) console.log(`Verified the bundled primary runtimes: ${runtimes.map(runtime => runtime.arch).join(', ')}`)
+    }
+    if (darwin) {
+      const slices = machOArchitectures(path)
+      if (!slices.includes(process.arch) && !(process.arch === 'arm64' && slices.includes('x64') && rosettaAvailable())) {
+        console.log(`Skipping packaged Node execution smoke for ${path} (${slices.join('/')}): this ${process.platform} ${process.arch} host cannot execute it`)
+        continue
+      }
     }
     await Promise.all([
       // Electron's Node mode reads the archive like a directory, as the Host and CLI will.

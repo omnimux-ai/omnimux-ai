@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { nextRuntimeFileExclusion, nextRuntimePackageExclusion, type NextPackagingTarget, type RuntimePackageConstraints } from './runtime-file-policy.ts'
+import { nextRuntimeFileExclusion, nextRuntimePackageExclusion, nextRuntimeUnusedFeatureExclusion, type NextPackagingTarget, type RuntimePackageConstraints } from './runtime-file-policy.ts'
 import { nextPackagingTarget, nextPayloadRelease, PAYLOAD_DIR, verifyNextPayload } from './packaged-payload.ts'
 import { DESKTOP_RUNTIME_FILE, physicalPayload, sealPayloadAsync, type DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
 import { packagingStep, packagingStepSync } from './packaging-step.ts'
@@ -13,6 +13,9 @@ import { windowsCodePayload, writeWindowsCodeFiles } from './windows-asar-unpack
 /** Shell entries copied beside the dependency tree; `package.json` is written separately. */
 const SHELL_ENTRIES = ['lib', 'assets', 'build/app-icon.ico', 'build/app-icon.png', 'build/app-icon-mac.png',
   'cordis.patch.yml', 'host.cordis.patch.yml', 'scripts/node-bin'] as const
+
+/** Report of the unused-feature packages one preparation skipped, written beside the payload directory. */
+export const SKIPPED_FEATURES_FILE = 'payload-skipped-features.json'
 
 /** Names electron-builder's walker never copies; the inventory has to agree with it. */
 const IGNORED_NAMES = new Set(['.DS_Store', '.gitkeep'])
@@ -78,6 +81,21 @@ function installedPackage(installedModules: string, name: string): { source: str
   return { source, version: readManifest(source).version ?? '' }
 }
 
+/** A required dependency deliberately left out because this release line does not ship its feature. */
+export interface SkippedFeaturePackage {
+  readonly name: string
+  /** Every dependent that declares it as a required edge, sorted. */
+  readonly requiredBy: readonly string[]
+  readonly reason: string
+}
+
+/** The production closure and the unused-feature packages it deliberately leaves out. */
+export interface ProductionClosureReport {
+  readonly packages: ClosurePackage[]
+  /** Sorted by name; optional edges to excluded packages are not listed. */
+  readonly skipped: SkippedFeaturePackage[]
+}
+
 /**
  * Collect the production closure of the application manifest: dependencies, required peers and
  * installed optional dependencies, each resolved from its dependent as Node will resolve it.
@@ -85,11 +103,16 @@ function installedPackage(installedModules: string, name: string): { source: str
  * workspace package, and dependencies installed beside one, are placed the way an installer
  * hoists them: at the payload root unless the root already holds another version of the same
  * name, in which case they nest under their dependent. One version is copied once.
+ *
+ * A package from the unused-feature table is skipped with its whole subtree even when an edge
+ * requires it: the Next profile disables the cordis rows that would load it, so the edge is
+ * never followed at runtime. Each such required edge is reported rather than dropped silently.
+ * A required package that is wrong for the target OS or CPU still stops the build.
  * @param desktopRoot - Application package directory.
  * @param target - Release platform and architectures used to select optional native packages.
- * @returns Packages sorted by destination.
+ * @returns Packages sorted by destination, and the skipped unused-feature packages.
  */
-export function collectProductionClosure(desktopRoot: string, target = nextPackagingTarget(process.platform)): ClosurePackage[] {
+export function collectProductionClosureReport(desktopRoot: string, target = nextPackagingTarget(process.platform)): ProductionClosureReport {
   const root = realpathSync(desktopRoot)
   const installedModules = join(root, 'node_modules')
   const installedPlacement = (source: string): string | undefined => {
@@ -97,6 +120,7 @@ export function collectProductionClosure(desktopRoot: string, target = nextPacka
     return rel === '' || rel.startsWith('..') || isAbsolute(rel) ? undefined : rel.split(sep).join('/')
   }
   const placed = new Map<string, ClosurePackage>()
+  const skipped = new Map<string, { reason: string; requiredBy: Set<string> }>()
   const visited = new Set<string>()
   const queue: { real: string; destination: string | undefined }[] = [{ real: root, destination: undefined }]
   while (queue.length > 0) {
@@ -110,6 +134,17 @@ export function collectProductionClosure(desktopRoot: string, target = nextPacka
     const required = [...Object.keys(manifest.dependencies ?? {}).filter(name => !optional.includes(name)),
       ...Object.keys(manifest.peerDependencies ?? {}).filter(name => optionalPeers[name]?.optional !== true)]
     for (const name of new Set([...required, ...optional])) {
+      // A feature this line does not ship is dropped before resolution and the OS/CPU check:
+      // the manifest would pass that check and still be dead weight, and its profile row is disabled.
+      const unused = nextRuntimeUnusedFeatureExclusion(name)
+      if (unused !== undefined) {
+        if (required.includes(name)) {
+          const entry = skipped.get(name) ?? { reason: unused, requiredBy: new Set<string>() }
+          entry.requiredBy.add(dependent)
+          skipped.set(name, entry)
+        }
+        continue
+      }
       const installed = resolvePackageDir(name, real)
       if (installed === undefined) {
         if (required.includes(name)) throw new Error(`Next payload: dependency ${name} required by ${dependent} is not installed`)
@@ -143,7 +178,22 @@ export function collectProductionClosure(desktopRoot: string, target = nextPacka
       queue.push({ real: source, destination })
     }
   }
-  return [...placed.values()].sort((a, b) => a.destination < b.destination ? -1 : a.destination > b.destination ? 1 : 0)
+  const byString = (a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0
+  return {
+    packages: [...placed.values()].sort((a, b) => byString(a.destination, b.destination)),
+    skipped: [...skipped.entries()].sort(([a], [b]) => byString(a, b))
+      .map(([name, { reason, requiredBy }]) => ({ name, requiredBy: [...requiredBy].sort(byString), reason })),
+  }
+}
+
+/**
+ * The production closure alone; see {@link collectProductionClosureReport}.
+ * @param desktopRoot - Application package directory.
+ * @param target - Release platform and architectures used to select optional native packages.
+ * @returns Packages sorted by destination.
+ */
+export function collectProductionClosure(desktopRoot: string, target = nextPackagingTarget(process.platform)): ClosurePackage[] {
+  return collectProductionClosureReport(desktopRoot, target).packages
 }
 
 type Keep = (path: string, name: string) => boolean
@@ -243,7 +293,10 @@ export async function preparePayload(options: PreparePayloadOptions): Promise<De
   const transformMain = createTransformer(output, {}, options.extraMetadata)
   const mainManifest = await packagingStep('payload:transform-main-manifest', async () => transformMain(join(output, 'package.json')))
   if (mainManifest != null) writeFileSync(join(output, 'package.json'), mainManifest)
-  const closure = packagingStepSync('payload:collect-dependencies', () => collectProductionClosure(desktopRoot, target))
+  const { packages: closure, skipped } = packagingStepSync('payload:collect-dependencies', () => collectProductionClosureReport(desktopRoot, target))
+  for (const entry of skipped) log(`Skipped unused feature ${entry.name} (required by ${entry.requiredBy.join(', ')}): ${entry.reason}`)
+  // Beside the payload rather than inside it: the sealed tree admits only the application's own root entries.
+  writeFileSync(join(dirname(output), SKIPPED_FEATURES_FILE), `${JSON.stringify({ target, skipped }, undefined, 2)}\n`)
   const modules = join(output, 'node_modules')
   packagingStepSync('payload:copy-dependencies', () => {
     for (const pkg of closure) copyPackage(pkg, modules, target)
@@ -264,8 +317,9 @@ export async function preparePayload(options: PreparePayloadOptions): Promise<De
   packagingStepSync('payload:verify-dependencies', () => verifyNextPayload(source))
   const release = nextPayloadRelease(source, options.electronVersion)
   const manifest = readManifest(output)
-  const sharedNames = Object.keys(manifest.dependencies ?? {}).filter(name =>
-    !Object.hasOwn(manifest.optionalDependencies ?? {}, name) || source.entry(`node_modules/${name}/package.json`) !== undefined)
+  const skippedNames = new Set(skipped.map(entry => entry.name))
+  const sharedNames = Object.keys(manifest.dependencies ?? {}).filter(name => !skippedNames.has(name)
+    && (!Object.hasOwn(manifest.optionalDependencies ?? {}, name) || source.entry(`node_modules/${name}/package.json`) !== undefined))
   const file = join(output, DESKTOP_RUNTIME_FILE)
   const windowsCode = new Set<string>()
   const hashSource = target.platform === 'win32' ? windowsCodePayload(source, windowsCode) : source

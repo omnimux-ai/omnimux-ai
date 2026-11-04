@@ -49,7 +49,11 @@ async function assembled(extra: (app: string) => void = () => {}, seal = true): 
 }
 
 it('describes the architectures each release target carries', () => {
-  expect(nextPackagingTarget('darwin')).toEqual({ platform: 'darwin', archs: ['arm64', 'x64'] })
+  expect(nextPackagingTarget('darwin', 'arm64', {})).toEqual({ platform: 'darwin', archs: ['arm64', 'x64'] })
+  expect(nextPackagingTarget('darwin', 'arm64', { DSH_MAC_RELEASE_ARCH: 'arm64' })).toEqual({ platform: 'darwin', archs: ['arm64'] })
+  expect(nextPackagingTarget('darwin', 'arm64', { DSH_MAC_RELEASE_ARCH: 'x64' })).toEqual({ platform: 'darwin', archs: ['x64'] })
+  expect(nextPackagingTarget('darwin', 'arm64', { DSH_MAC_SMOKE_ARCH: 'arm64' })).toEqual({ platform: 'darwin', archs: ['arm64'] })
+  expect(nextPackagingTarget('darwin', 'arm64', { DSH_MAC_SMOKE_ARCH: 'x64' })).toEqual({ platform: 'darwin', archs: ['x64'] })
   expect(nextPackagingTarget('win32')).toEqual({ platform: 'win32', archs: ['x64'] })
   expect(nextPackagingTarget('linux', 'arm64')).toEqual({ platform: 'linux', archs: ['arm64'] })
 })
@@ -122,6 +126,38 @@ it('rejects an archive missing a declared dependency or a shell-owned file', asy
   const { resources: without } = await assembled((app) => { rmSync(join(app, 'host.cordis.patch.yml')) }, false)
   const missing = archivedPayload(without)
   try { expect(() => verifyNextPayload(missing)).toThrow(/Missing Next payload: host\.cordis\.patch\.yml/u) } finally { missing.close() }
+})
+
+it('accepts a missing unused-feature edge and flags an unused-feature package that reached the archive', async () => {
+  const { resources } = await assembled((app) => {
+    const manifestPath = join(app, 'node_modules', 'native-pkg', 'package.json')
+    const native = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>
+    writeFileSync(manifestPath, JSON.stringify({ ...native, dependencies: { '@deepseek-ai/dsh-skill-office': '*' } }))
+  }, false)
+  const source = archivedPayload(resources)
+  try { expect(() => verifyNextPayload(source)).not.toThrow() } finally { source.close() }
+  const { resources: leaked } = await assembled((app) => { writePackage(join(app, 'node_modules'), '@dataiku/uv') }, false)
+  const leakedSource = archivedPayload(leaked)
+  try {
+    expect(auditNextPayload(leakedSource, target)).toContain('node_modules/@dataiku/uv/package.json: Python runtime for the unshipped Agents Anywhere bridge must not be packaged')
+  } finally { leakedSource.close() }
+})
+
+it('requires the Office CLI closure unpacked only when the payload carries the kit', async () => {
+  const { resources } = await assembled((app) => { writePackage(join(app, 'node_modules'), 'koffi') }, false)
+  const source = archivedPayload(resources)
+  try { expect(auditNextPayload(source, target).filter(problem => problem.includes('koffi'))).toEqual([]) } finally { source.close() }
+  const { resources: office } = await assembled((app) => {
+    writePackage(join(app, 'node_modules'), 'koffi')
+    writePackage(join(app, 'node_modules'), '@deepseek-ai/libreoffice-kit')
+  }, false)
+  const officeSource = archivedPayload(office)
+  try {
+    expect(auditNextPayload(officeSource, target)).toEqual(expect.arrayContaining([
+      'node_modules/koffi/index.js: must be unpacked beside app.asar',
+      'node_modules/@deepseek-ai/libreoffice-kit/index.js: must be unpacked beside app.asar',
+    ]))
+  } finally { officeSource.close() }
 })
 
 it('rejects incompatible native package manifests even inside a nested archived dependency', async () => {

@@ -16,12 +16,19 @@ const readEntitlements: ReadEntitlements = (path, arch) => {
   return JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', '-'], { input: xml, encoding: 'utf8' }))
 }
 
-/** Both Universal slices and every Electron Helper must retain microphone access. */
-export function verifyNextMacEntitlements(appPath: string, read: ReadEntitlements = readEntitlements): void {
+/**
+ * Every packaged CPU slice and every Electron Helper must retain microphone access.
+ * A single-architecture release carries one slice, so the caller states which ones exist.
+ */
+export function verifyNextMacEntitlements(
+  appPath: string,
+  read: ReadEntitlements = readEntitlements,
+  arches: readonly string[] = ['arm64', 'x86_64'],
+): void {
   const targets = [appPath, ...['', ' (Renderer)', ' (GPU)', ' (Plugin)']
     .map(suffix => join(appPath, 'Contents', 'Frameworks', `OmniMux Helper${suffix}.app`))]
   for (const target of targets) {
-    for (const arch of ['arm64', 'x86_64']) {
+    for (const arch of arches) {
       const entitlements = read(target, arch)
       for (const key of NEXT_MAC_REQUIRED_ENTITLEMENTS) {
         if (entitlements[key] !== true) throw new Error(`Missing macOS entitlement ${key} in ${target} (${arch})`)

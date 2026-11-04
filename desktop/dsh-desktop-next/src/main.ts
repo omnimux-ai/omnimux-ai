@@ -171,7 +171,8 @@ const runtime = new NextDesktopRuntime({
 })
 const platformLogin = new PlatformLoginWindow({
   BrowserWindow, session: partition => session.fromPartition(partition), host: () => runtime.auth,
-  parent: () => mainWindow, title: () => t('登录 DeepSeek', 'Sign in to DeepSeek'), dark: () => nativeTheme.shouldUseDarkColors,
+  // Product sign-in is the OmniMux account; only the model-credential flow can still reach this window.
+  parent: () => mainWindow, title: () => t('登录模型账号', 'Sign in to model account'), dark: () => nativeTheme.shouldUseDarkColors,
   warn: error => runtime.diagnostics.append(String(error), 'warn'),
 })
 const native = new NativeDesktop({ root, language: () => windowsLanguage, state, window: () => mainWindow,

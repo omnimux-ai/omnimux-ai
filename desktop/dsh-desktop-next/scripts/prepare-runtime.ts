@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parsePrimaryRuntime, workspaceDependencyPaths, type PrimaryRuntimeManifest } from '@deepseek-ai/dsh-tool-workspace-dependencies'
 import { macSmokeArchitecture } from '../../dsh-plugin-desktop/scripts/mac-universal.ts'
+import { macReleaseArchitecture } from '../../dsh-plugin-desktop/scripts/release-mac.ts'
 import { machOArchitectures, preparePrimaryRuntime, primaryRuntimePayloadDigest, readPrimaryRuntimeLock, rosettaAvailable, smokePrimaryRuntime, type PrimaryRuntimeTarget } from './primary-runtime.ts'
 
 /** CPU of one bundled payload. */
@@ -17,12 +18,12 @@ export interface NextRuntimeTarget {
 }
 
 /**
- * Payloads one Next package carries: both Darwin CPUs by default (or the single smoke CPU when
- * `DSH_MAC_SMOKE_ARCH` selects one), because macOS releases are universal and the installed slice
- * selects its payload at runtime; Windows x64; and the build host CPU on Linux.
+ * Payloads one Next package carries: both Darwin CPUs by default (or the single CPU when
+ * `DSH_MAC_SMOKE_ARCH` or `DSH_MAC_RELEASE_ARCH` selects one), Windows x64, and the build host CPU
+ * on Linux.
  * @param platform - Electron platform being packaged.
  * @param hostArch - Build host architecture, used on Linux where packages are single-architecture.
- * @param env - Process environment inspected for single-architecture smoke selection.
+ * @param env - Process environment inspected for single-architecture smoke or release selection.
  * @returns Locked targets and their CPUs.
  */
 export function nextRuntimeTargets(
@@ -31,7 +32,9 @@ export function nextRuntimeTargets(
   env: NodeJS.ProcessEnv = process.env,
 ): readonly NextRuntimeTarget[] {
   if (platform === 'darwin') {
-    const arch = macSmokeArchitecture(env)
+    const smokeArch = macSmokeArchitecture(env)
+    const releaseArch = macReleaseArchitecture(env)
+    const arch = smokeArch !== 'universal' ? smokeArch : releaseArch
     if (arch === 'arm64') return [{ target: 'mac-arm64', arch: 'arm64' }]
     if (arch === 'x64') return [{ target: 'mac-x64', arch: 'x64' }]
     return [{ target: 'mac-arm64', arch: 'arm64' }, { target: 'mac-x64', arch: 'x64' }]

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import beforeBuild from '../scripts/before-build.ts'
 import { nextPackagingTarget, PAYLOAD_DIR, verifyNextPayload } from '../scripts/packaged-payload.ts'
-import { collectProductionClosure, preparePayload, publishedEntries } from '../scripts/prepare-payload.ts'
+import { collectProductionClosure, collectProductionClosureReport, preparePayload, publishedEntries, SKIPPED_FEATURES_FILE } from '../scripts/prepare-payload.ts'
 import { DESKTOP_RUNTIME_FILE, physicalPayload, readDesktopRuntime, verifyPayload } from '../src/runtime-tree.ts'
 import { completeApplication, FIXTURE_RELEASE, writeApplication, writePackage } from './runtime-fixture.ts'
 
@@ -199,6 +199,58 @@ it('prunes only incompatible optional packages and their exclusive dependencies 
   manifest.dependencies['required-native-user'] = '*'
   writeFileSync(join(desktop, 'package.json'), JSON.stringify(manifest))
   expect(() => collectProductionClosure(desktop, release)).toThrow(/windows-arm64 required by required-native-user cannot be packaged/u)
+})
+
+it('skips a required unused-feature package, records why, and still seals a resolvable payload', async () => {
+  const { root, desktop } = workspace()
+  const modules = join(desktop, 'node_modules')
+  const manifest = JSON.parse(readFileSync(join(desktop, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
+  // The shape the real tree has: the shell and the official runtime both require Office and voice packages
+  // whose cordis rows the Next profile disables, and the Office skill pulls the LibreOffice runtime.
+  manifest.dependencies['@deepseek-ai/dsh-skill-office'] = '*'
+  manifest.dependencies['@deepseek-ai/dsh-experimental-voice-input-bundle'] = '*'
+  writeFileSync(join(desktop, 'package.json'), JSON.stringify(manifest))
+  writePackage(modules, '@deepseek-ai/dsh-skill-office', { dependencies: { '@deepseek-ai/libreoffice-kit': '*' } })
+  writePackage(modules, '@deepseek-ai/libreoffice-kit')
+  writePackage(modules, '@deepseek-ai/dsh-experimental-voice-input-bundle')
+  writePackage(modules, 'bridge-user', { dependencies: { '@dataiku/uv': '*' } })
+  writePackage(modules, '@dataiku/uv')
+  const peerManifest = join(modules, 'peer-user', 'package.json')
+  const peer = JSON.parse(readFileSync(peerManifest, 'utf8')) as Record<string, unknown>
+  writeFileSync(peerManifest, JSON.stringify({ ...peer, dependencies: { '@deepseek-ai/dsh-skill-office': '*', 'bridge-user': '*' } }))
+  const names = collectProductionClosure(desktop, target).map(pkg => pkg.name)
+  for (const name of ['@deepseek-ai/dsh-skill-office', '@deepseek-ai/libreoffice-kit', '@deepseek-ai/dsh-experimental-voice-input-bundle', '@dataiku/uv']) {
+    expect(names, name).not.toContain(name)
+  }
+  expect(names).toContain('bridge-user')
+  const { packages, skipped } = collectProductionClosureReport(desktop, target)
+  expect(packages.map(pkg => pkg.name)).toEqual(names)
+  expect(skipped).toEqual([
+    { name: '@dataiku/uv', requiredBy: ['bridge-user'], reason: 'Python runtime for the unshipped Agents Anywhere bridge' },
+    { name: '@deepseek-ai/dsh-experimental-voice-input-bundle', requiredBy: ['dsh-desktop-next'], reason: 'Voice input is not shipped' },
+    { name: '@deepseek-ai/dsh-skill-office', requiredBy: ['dsh-desktop-next', 'peer-user'], reason: 'Office skill is not shipped' },
+  ])
+  const output = join(root, 'payload')
+  const log: string[] = []
+  const descriptor = await preparePayload({ desktopRoot: desktop, output, target, electronVersion: '44.0.0', log: message => log.push(message) })
+  expect(existsSync(join(output, 'node_modules', '@deepseek-ai', 'dsh-skill-office'))).toBe(false)
+  expect(existsSync(join(output, 'node_modules', '@deepseek-ai', 'libreoffice-kit'))).toBe(false)
+  expect(existsSync(join(output, 'node_modules', '@dataiku', 'uv'))).toBe(false)
+  // A shared package the payload does not carry cannot be recorded, and the dependency check accepts the deliberate gap.
+  expect(descriptor.sharedPackages.map(entry => entry.name)).not.toContain('@deepseek-ai/dsh-skill-office')
+  expect(descriptor.sharedPackages.map(entry => entry.name)).not.toContain('@deepseek-ai/dsh-experimental-voice-input-bundle')
+  expect(() => verifyNextPayload(physicalPayload(output))).not.toThrow()
+  expect(log).toEqual(expect.arrayContaining([
+    'Skipped unused feature @deepseek-ai/dsh-skill-office (required by dsh-desktop-next, peer-user): Office skill is not shipped',
+    'Skipped unused feature @dataiku/uv (required by bridge-user): Python runtime for the unshipped Agents Anywhere bridge',
+  ]))
+  // The record survives the run beside the sealed payload, so the omission is auditable after packaging.
+  expect(JSON.parse(readFileSync(join(root, SKIPPED_FEATURES_FILE), 'utf8'))).toEqual({ target: JSON.parse(JSON.stringify(target)), skipped })
+  // A required package that is wrong for the target platform still stops the build.
+  writePackage(modules, '@fixture/other-os', { os: [target.platform === 'win32' ? 'darwin' : 'win32'] })
+  manifest.dependencies['@fixture/other-os'] = '*'
+  writeFileSync(join(desktop, 'package.json'), JSON.stringify(manifest))
+  expect(() => collectProductionClosure(desktop, target)).toThrow(/@fixture\/other-os required by dsh-desktop-next cannot be packaged: package OS does not match target/u)
 })
 
 it('declines electron-builder dependency handling once a matching payload is prepared', async () => {

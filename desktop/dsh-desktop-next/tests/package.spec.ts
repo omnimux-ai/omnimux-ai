@@ -47,10 +47,13 @@ it('archives the application like upstream Desktop while keeping fuses and nativ
   expect(next.build.afterPack).toBe('./scripts/verify-packaged.ts')
   expect(next.build.afterAllArtifactBuild).toBe('./scripts/verify-fuses.ts')
   expect(next.build.electronFuses).toEqual(stable.build.electronFuses)
-  // Stable's rule already keeps the interpreter payloads and the wheels' .dylibs directories, identical across the two
-  // CPU builds. Next adds its own per-CPU native packages and pnpm's reflink addons from its bundled dist/node_modules.
-  expect(next.build.mac.x64ArchFiles).toBe(stable.build.mac.x64ArchFiles
-    .replace('sherpa-onnx-darwin-*/**}', 'sherpa-onnx-darwin-*/**,@trycua/cua-driver-darwin-*/**,@ubjs/node-darwin-*/**,@reflink/reflink-darwin-*/**}'))
+  // This line publishes Apple Silicon only: a universal build carried a second
+  // copy of every native dependency (LibreOffice, uv, sherpa, sharp, koffi) for
+  // an Intel audience that does not exist yet. Without a universal merge there is
+  // no per-CPU file split to declare, so `x64ArchFiles` must be absent — leaving
+  // it in place would describe a merge that never runs.
+  expect(next.build.mac.artifactName).toBe('OmniMux-${version}-arm64.${ext}')
+  expect(next.build.mac.x64ArchFiles).toBeUndefined()
   // Both CPU payloads ride beside the archive as extra resources; electron-builder must not re-sign the pre-signed payloads.
   // macOS also carries the manifest copy the updaters shipped in 2.0.14-next through 2.0.17-next read beside the archive.
   expect(next.build.mac.extraResources).toEqual([{ from: '.desktop-build/runtime', to: 'runtime' }, { from: '.desktop-build/payload/package.json', to: 'app/package.json' }])
@@ -62,7 +65,10 @@ it('archives the application like upstream Desktop while keeping fuses and nativ
   // Like upstream Desktop's dev launcher, every development launch prepares the payload before the shell starts.
   expect(next.scripts.dev).toBe('yarn build && yarn prepare:runtime && node scripts/start.mjs')
   expect(next.scripts.start).toBe('yarn prepare:runtime && node scripts/start.mjs')
-  for (const name of ['@deepseek-ai/dsh-skill-office', '@deepseek-ai/dsh-tool-workspace-dependencies']) expect(next.dependencies[name], name).toBe(next.dependencies['@deepseek-ai/dsh'])
+  expect(next.dependencies['@deepseek-ai/dsh-tool-workspace-dependencies']).toBe(next.dependencies['@deepseek-ai/dsh'])
+  // The Host no longer mounts Office skills; only the runtime preparation reads the skill's assets at build time.
+  expect(next.dependencies['@deepseek-ai/dsh-skill-office']).toBeUndefined()
+  expect(next.devDependencies['@deepseek-ai/dsh-skill-office']).toBe(next.dependencies['@deepseek-ai/dsh'])
   expect(next.build.mac.icon).toBe('build/app-icon.icon')
   expect(existsSync(new URL('../build/app-icon.icon/icon.json', import.meta.url))).toBe(true)
   expect(next.build.nsis).toMatchObject({ oneClick: false, perMachine: false, allowElevation: true, allowToChangeInstallationDirectory: true })

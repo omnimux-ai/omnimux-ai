@@ -15,7 +15,7 @@ vi.mock('react', async importOriginal => ({
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Button: 'button', Toast: 'official-toast' }))
 afterEach(() => { vi.unstubAllGlobals() })
 
-function fixture(signedIn: boolean, required = false, failDismiss = false, overrides = {}) {
+function fixture(signedIn: boolean, required = false, failDismiss = false, overrides = {}, omnimux?: { ensureLogin: ReturnType<typeof vi.fn>; getStatus?: ReturnType<typeof vi.fn> }) {
   const snapshot = { profile: 'work', required, accountPending: !required, edition: 'desktop', restartPending: false, input: { platform: 'darwin' }, ...overrides }
   hooks.values = [snapshot, '', 0, false]; hooks.setters = []; hooks.effects = []
   const bridge = {
@@ -23,7 +23,7 @@ function fixture(signedIn: boolean, required = false, failDismiss = false, overr
     dismissAccount: vi.fn(async () => { if (failDismiss) throw new Error('save failed') }),
     applyPending: vi.fn(async () => {}),
   }
-  vi.stubGlobal('window', { dshDesktopSetup: bridge })
+  vi.stubGlobal('window', { dshDesktopSetup: bridge, ...omnimux ? { __omnimuxAuth: omnimux } : {} })
   let Component: (props: any) => any = () => null
   const ctx = { slots: {
     inject: (_name: string, callback: () => void) => callback(),
@@ -32,7 +32,7 @@ function fixture(signedIn: boolean, required = false, failDismiss = false, overr
   const content = vi.fn((..._args: any[]) => 'Original wizard')
   registerDesktopOnboarding(ctx as any, content)
   const openLogin = vi.fn(), renderNext = vi.fn(), renderLoading = vi.fn(() => 'Loading')
-  const props = { bridge, content, zh: true, accountStatus: signedIn ? 'credential-stored' : 'signed-out',
+  const props = { bridge, content, zh: true, accountStatus: (overrides as { accountStatus?: string }).accountStatus ?? (signedIn ? 'credential-stored' : 'signed-out'),
     openLogin, renderNext, renderLoading, renderNavigation: vi.fn(), renderSurface: (value: unknown) => value }
   const result = Component(props)
   const renderWithSnapshot = (value: unknown) => {
@@ -127,6 +127,69 @@ it('applies saved settings only when the user explicitly requests the final rest
   expect(view.result.props.children[1].type).toBe('official-toast')
   view.result.props.children[1].props.actions[0].onClick()
   await vi.waitFor(() => expect(view.bridge.applyPending).toHaveBeenCalledExactlyOnceWith('work'))
+})
+
+/** Collect every string rendered into a React element tree. */
+function text(node: any): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(text).join(' ')
+  return text(node.props?.children)
+}
+/** Find the first element whose props satisfy a predicate. */
+function find(node: any, match: (props: any) => boolean): any {
+  if (!node || typeof node !== 'object') return undefined
+  if (Array.isArray(node)) { for (const child of node) { const hit = find(child, match); if (hit) return hit } return undefined }
+  if (node.props && match(node.props)) return node
+  return find(node.props?.children, match)
+}
+
+it('offers the OmniMux account instead of DeepSeek when the OmniMux sign-in is installed', async () => {
+  const ensureLogin = vi.fn(async () => {})
+  const view = fixture(false, false, false, {}, { ensureLogin })
+  const copy = text(view.result)
+  expect(copy).toContain('登录 OmniMux')
+  expect(copy).not.toMatch(/DeepSeek|API Key/)
+  const primary = find(view.result, props => props.variant === 'primary')
+  primary.props.onClick()
+  await vi.waitFor(() => expect(ensureLogin).toHaveBeenCalledOnce())
+  expect(ensureLogin).toHaveBeenCalledWith(expect.objectContaining({ kind: 'explicit' }))
+  expect(view.bridge.dismissAccount).toHaveBeenCalledExactlyOnceWith('work')
+  expect(view.openLogin).not.toHaveBeenCalled()
+})
+
+it('enables OmniMux sign-in even while the DeepSeek account state is unreadable', () => {
+  const view = fixture(false, false, false, { accountStatus: 'error' }, { ensureLogin: vi.fn(async () => {}) })
+  expect(text(view.result)).toContain('登录 OmniMux')
+  expect(text(view.result)).not.toContain('暂时无法读取登录状态')
+  expect(find(view.result, props => props.variant === 'primary').props.disabled).toBe(false)
+})
+
+it('skips the sign-in prompt for an OmniMux account that is already signed in', async () => {
+  const getStatus = vi.fn(async () => ({ body: { logged_in: true } }))
+  const ensureLogin = vi.fn(async () => {})
+  const view = fixture(false, false, false, {}, { ensureLogin, getStatus })
+  hooks.effects[2]!()
+  await vi.waitFor(() => expect(hooks.setters[0]).toHaveBeenCalledWith(null))
+  expect(view.bridge.dismissAccount).toHaveBeenCalledExactlyOnceWith('work')
+  expect(ensureLogin).not.toHaveBeenCalled()
+  expect(view.openLogin).not.toHaveBeenCalled()
+})
+
+it('keeps the sign-in prompt for a signed-out OmniMux account', async () => {
+  const getStatus = vi.fn(async () => ({ body: { logged_in: false } }))
+  const view = fixture(false, false, false, {}, { ensureLogin: vi.fn(async () => {}), getStatus })
+  hooks.effects[2]!()
+  await vi.waitFor(() => expect(getStatus).toHaveBeenCalledOnce())
+  expect(view.bridge.dismissAccount).not.toHaveBeenCalled()
+  expect(hooks.setters[0]).not.toHaveBeenCalledWith(null)
+})
+
+it('keeps the official sign-in when no OmniMux account bridge is installed', async () => {
+  const view = fixture(false)
+  expect(text(view.result)).toContain('登录 DeepSeek')
+  find(view.result, props => props.variant === 'primary').props.onClick()
+  await vi.waitFor(() => expect(view.openLogin).toHaveBeenCalledOnce())
 })
 
 it('dismisses the official toast without restarting or discarding saved settings', () => {
