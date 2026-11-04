@@ -305,7 +305,9 @@ export function parseCanonicalChannelVersion(
 
 /**
  * Extract optional per-platform installer digests from the parsed version
- * response: `{ "version": "2.0.2", "sha256": { "windows": "<hex>", "mac": "<hex>" } }`.
+ * response. Three-package releases carry `sha256.macArm64` / `sha256.macX64`;
+ * older ones carry `sha256.mac`. The darwin digest is picked by the *running*
+ * architecture so an x64 Mac never validates against an arm64 binary.
  * Hex digits are case-normalized; absent or malformed fields simply leave the
  * digest gate unset for that platform.
  */
@@ -318,8 +320,11 @@ function parseInstallerDigestResponse(value: unknown): UpdateCheckResult['instal
     return /^[0-9a-f]{64}$/u.test(normalized) ? normalized : undefined
   }
   const windows = normalize(value.sha256.windows)
-  const mac = normalize(value.sha256.mac)
+  const macArm64 = normalize(value.sha256.macArm64)
+  const macX64 = normalize(value.sha256.macX64)
+  const macLegacy = normalize(value.sha256.mac)
   if (windows !== undefined) digests.win32 = windows
+  const mac = process.arch === 'x64' ? macX64 ?? macLegacy : macArm64 ?? macLegacy
   if (mac !== undefined) digests.darwin = mac
   return Object.keys(digests).length > 0 ? digests : undefined
 }

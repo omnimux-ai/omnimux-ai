@@ -477,14 +477,17 @@ async function mirrorDesktopProfilePreferences(
 
 /** Start one Electron process and leave lifetime to the mounted desktop plugin. */
 async function start(): Promise<void> {
-  if (
-    isOmnimuxDevLaunch({
-      env: process.env,
-      execPath: process.execPath,
-      appName: app.getName(),
-      userDataDir: app.getPath('userData'),
-    })
-  ) {
+  // Both editions ship the same bundle identity, so only the launch markers say
+  // which home owns this process. `resolveDesktopChannelHome` defaults to the
+  // stable identity, which would point a Dev launch at `~/.omnimux` and make it
+  // seed the release Profile with the Dev preset.
+  const devLaunch = isOmnimuxDevLaunch({
+    env: process.env,
+    execPath: process.execPath,
+    appName: app.getName(),
+    userDataDir: app.getPath('userData'),
+  })
+  if (devLaunch) {
     const currentName = app.getName()
     if (!currentName.includes('Dev')) app.setName(`${currentName} Dev`)
     app.setPath('userData', join(app.getPath('appData'), 'OmniMux-Dev'))
@@ -860,7 +863,9 @@ async function start(): Promise<void> {
     })
     const dshBootstrapPath = fileURLToPath(new URL('./desktop-cli.js', import.meta.url))
     const releasePnpmRuntime = generation.own(() => { pnpmRuntime.dispose() })
-    const channelHomeResolution = resolveDesktopChannelHome()
+    const channelHomeResolution = resolveDesktopChannelHome(
+      devLaunch ? { identity: OTHER_DESKTOP_PRODUCT_IDENTITY } : {},
+    )
     const fallbackHome = channelHomeResolution.homeDir
     const defaultHome = channelHomeResolution.channelHome
     const fallbackSource = channelHomeResolution.status === 'explicit' ? 'environment' : 'default'

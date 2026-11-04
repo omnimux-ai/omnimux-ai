@@ -11,11 +11,11 @@ import {
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const BETTER_SIDEBAR_VERSION = '0.19.1'
-export const BETTER_SIDEBAR_COMMIT = '8753096a583ff2891d57a0074f1ac71cd5c6003e'
+export const BETTER_SIDEBAR_VERSION = '0.28.1'
+export const BETTER_SIDEBAR_COMMIT = '59131330bb837cf48dc4117b17c091998b595df0'
 export const BETTER_SIDEBAR_REPOSITORY = 'https://github.com/omdsh-dev/DSH-better-sidebar.git'
 export const BETTER_SIDEBAR_PNPM_VERSION = '11.8.0'
-export const BETTER_SIDEBAR_LOCK_SHA256 = '589e7c61b7676444446f15d5eac93216c278d46564c812b57b54915c86ce12f2'
+export const BETTER_SIDEBAR_LOCK_SHA256 = 'd45f33d5e4adb0148210366de2ff800db1f14ef9196ef44643b53f11977cefb9'
 
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 // Upgrade and failure-handling contract: docs/contracts/better-sidebar-source.md.

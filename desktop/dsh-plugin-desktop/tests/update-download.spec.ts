@@ -527,3 +527,89 @@ it('downloads Next with a pinned release, a distinct filename and byte progress'
   expect(headers.get(DESKTOP_RELEASE_CHANNEL_HEADER)).toBe('next');
   expect(headers.get(DESKTOP_TARGET_VERSION_HEADER)).toBe('2.0.14-next');
 });
+
+describe('parallel range update download', () => {
+  it('downloads large installers in parallel byte ranges, reassembles out-of-order chunks, and verifies SHA-256', async () => {
+    const root = await temporaryDirectory()
+    const totalBytes = 16 * 1024
+    const artifact = Buffer.alloc(totalBytes)
+    for (let index = 0; index < totalBytes; index++) artifact[index] = (index * 31 + 7) & 0xff
+    artifact.write('koly', totalBytes - 512, 'ascii')
+    const digest = createHash('sha256').update(artifact).digest('hex')
+
+    const seenRanges: string[] = []
+    const progress = vi.fn()
+    const request: UpdateArtifactRequest = async (_url, init) => {
+      const headers = new Headers(init.headers)
+      const range = headers.get('range')
+      if (range === null) {
+        return chunkedResponse(
+          [artifact.subarray(0, 2048), artifact.subarray(2048, 4096), artifact.subarray(4096)],
+          { 'content-length': String(totalBytes), 'accept-ranges': 'bytes', etag: '"v2.1.0-etag"' },
+        )
+      }
+      seenRanges.push(range)
+      expect(headers.get('if-range')).toBe('"v2.1.0-etag"')
+      const match = /^bytes=(\d+)-(\d+)$/u.exec(range)
+      if (!match) throw new Error(`unexpected range ${range}`)
+      const start = Number(match[1])
+      const end = Number(match[2])
+      // Delay earlier ranges slightly so workers finish out of order.
+      await new Promise(resolve => setTimeout(resolve, start === 4096 ? 15 : 2))
+      const slice = artifact.subarray(start, end + 1)
+      return {
+        response: new Response(slice, {
+          status: 206,
+          headers: {
+            'content-length': String(slice.byteLength),
+            'content-range': `bytes ${String(start)}-${String(end)}/${String(totalBytes)}`,
+          },
+        }),
+        finalUrl: 'https://dl.omnimux.ai/releases/latest/OmniMux-arm64.dmg',
+      }
+    }
+
+    const result = await downloadDesktopUpdate({
+      platform: 'darwin',
+      version: '2.1.0',
+      destinationPath: destinationPath(root, 'darwin', '2.1.0'),
+      request,
+      expectedSha256: digest,
+      onProgress: progress,
+      parallel: { minBytes: 4096, chunkBytes: 4096, concurrency: 4 },
+    })
+
+    expect(seenRanges.sort()).toEqual([
+      'bytes=12288-16383',
+      'bytes=4096-8191',
+      'bytes=8192-12287',
+    ])
+    expect(await readFile(result)).toEqual(artifact)
+    expect(progress).toHaveBeenLastCalledWith(totalBytes, totalBytes)
+    await expectNoPartialFiles(root)
+  })
+
+  it('cleans up partial files and aborts sibling range workers when one range returns a non-206 status', async () => {
+    const root = await temporaryDirectory()
+    const artifact = Buffer.alloc(8192, 0x41)
+    artifact.write('koly', artifact.byteLength - 512, 'ascii')
+
+    await expectFailure(downloadDesktopUpdate({
+      platform: 'darwin',
+      version: '2.1.0',
+      destinationPath: destinationPath(root, 'darwin', '2.1.0'),
+      parallel: { minBytes: 2048, chunkBytes: 2048, concurrency: 4 },
+      request: async (_url, init) => {
+        const range = new Headers(init.headers).get('range')
+        if (range === null) {
+          return chunkedResponse([artifact], { 'content-length': String(artifact.byteLength), 'accept-ranges': 'bytes' })
+        }
+        return {
+          response: new Response('range not satisfiable', { status: 416 }),
+          finalUrl: 'https://dl.omnimux.ai/releases/latest/OmniMux-arm64.dmg',
+        }
+      },
+    }), 'http-status')
+    await expectNoPartialFiles(root)
+  })
+})

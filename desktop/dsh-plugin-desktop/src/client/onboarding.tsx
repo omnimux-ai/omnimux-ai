@@ -9,6 +9,18 @@ import type { DesktopOnboardingBridge, DesktopOnboardingSnapshot } from '../setu
 export type SetupNavigation = PropsRuntime<'onboarding.desktop.before'>['renderNavigation']
 export type SetupContent = (snapshot: DesktopOnboardingSnapshot, locale: 'zh' | 'en', finish: DesktopOnboardingBridge['finish'], renderNavigation: SetupNavigation) => ReactNode
 
+/** The OmniMux hub's login gate, installed on the renderer by the omnimux client plugin. */
+interface OmnimuxAuthGate {
+  ensureLogin(options: { kind: 'explicit'; reason?: string }): Promise<void>
+  getStatus?(verify?: boolean): Promise<{ body?: { logged_in?: boolean } | null } | null>
+}
+
+/** @returns the OmniMux login gate when the OmniMux product plugin is loaded in this renderer. */
+function omnimuxAuthGate(): OmnimuxAuthGate | undefined {
+  const gate = (window as unknown as { __omnimuxAuth?: Partial<OmnimuxAuthGate> }).__omnimuxAuth
+  return typeof gate?.ensureLogin === 'function' ? gate as OmnimuxAuthGate : undefined
+}
+
 function pendingSnapshot(value: DesktopOnboardingSnapshot | null): DesktopOnboardingSnapshot | null {
   return value?.required || value?.accountPending || value?.restartPending ? value : null
 }
@@ -46,6 +58,20 @@ function DesktopOnboarding({ bridge, content, zh, renderSurface, renderLoading, 
     }).catch(cause => { if (!disposed) setError(String(cause)) })
     return () => { disposed = true }
   }, [bridge, snapshot, accountStatus])
+  useEffect(() => {
+    // An OmniMux account that is already signed in needs no sign-in prompt.
+    if (!snapshot?.accountPending || snapshot.required) return
+    const gate = omnimuxAuthGate()
+    if (typeof gate?.getStatus !== 'function') return
+    let disposed = false
+    void gate.getStatus(false).then(async status => {
+      if (disposed || status?.body?.logged_in !== true) return
+      await bridge.dismissAccount(snapshot.profile)
+      const next = snapshot.restartPending ? pendingSnapshot(await bridge.read()) : null
+      if (!disposed) setSnapshot(next)
+    }).catch(cause => { if (!disposed) setError(String(cause)) })
+    return () => { disposed = true }
+  }, [bridge, snapshot])
   if (error) return renderSurface(<div role="alert" style={{ padding: 48 }}>
     <p>{error}</p><Button onClick={() => { setError(''); setSnapshot(undefined); refresh(value => value + 1) }}>{zh ? '重试' : 'Retry'}</Button>
   </div>)
@@ -68,6 +94,9 @@ function DesktopOnboarding({ bridge, content, zh, renderSurface, renderLoading, 
   }
   if (!snapshot.required) {
     if (accountStatus === 'credential-stored') return renderLoading()
+    // A product shell that ships its own account (OmniMux) signs in there; the
+    // official DeepSeek account stays the fallback for the stock Desktop.
+    const omnimux = omnimuxAuthGate()
     const dismiss = async (login: boolean) => {
       if (busy) return
       setBusy(true)
@@ -75,18 +104,26 @@ function DesktopOnboarding({ bridge, content, zh, renderSurface, renderLoading, 
         await bridge.dismissAccount(snapshot.profile)
         const next = snapshot.restartPending ? pendingSnapshot(await bridge.read()) : null
         setSnapshot(next)
-        if (login) openLogin()
+        if (login) {
+          if (omnimux) void omnimux.ensureLogin({ kind: 'explicit', reason: 'desktop-onboarding' }).catch(() => undefined)
+          else openLogin()
+        }
       } catch (cause) { setError(String(cause)) }
       finally { setBusy(false) }
     }
+    const signInLabel = omnimux ? (zh ? '登录 OmniMux' : 'Sign in to OmniMux') : (zh ? '登录 DeepSeek' : 'Sign in to DeepSeek')
     return renderSurface(<section className="dshDesktopAccountSetup" aria-labelledby="desktop-account-title" aria-busy={busy}>
       <div>
         <h1 id="desktop-account-title">{zh ? '桌面设置已完成' : 'Desktop setup is complete'}</h1>
-        <p>{zh ? `登录 DeepSeek，开始使用 Profile「${snapshot.profile}」。` : `Sign in to DeepSeek to get started with Profile “${snapshot.profile}”.`}</p>
-        <p>{zh ? '登录后，如当前 Profile 尚未完成官方引导，将继续进行设置。你也可以在登录窗口中选择使用 API Key，或稍后登录。' : 'After sign-in, any unfinished official setup for this Profile will continue. You can also choose an API key in the sign-in dialog, or sign in later.'}</p>
-        {accountStatus === 'error' && <p role="alert">{zh ? '暂时无法读取登录状态，可以稍后在账号菜单中登录。' : 'Account status is unavailable. You can sign in later from the account menu.'}</p>}
+        {omnimux
+          ? <p>{zh ? `登录 OmniMux，开始使用 Profile「${snapshot.profile}」。` : `Sign in to OmniMux to get started with Profile “${snapshot.profile}”.`}</p>
+          : <>
+            <p>{zh ? `登录 DeepSeek，开始使用 Profile「${snapshot.profile}」。` : `Sign in to DeepSeek to get started with Profile “${snapshot.profile}”.`}</p>
+            <p>{zh ? '登录后，如当前 Profile 尚未完成官方引导，将继续进行设置。你也可以在登录窗口中选择使用 API Key，或稍后登录。' : 'After sign-in, any unfinished official setup for this Profile will continue. You can also choose an API key in the sign-in dialog, or sign in later.'}</p>
+          </>}
+        {!omnimux && accountStatus === 'error' && <p role="alert">{zh ? '暂时无法读取登录状态，可以稍后在账号菜单中登录。' : 'Account status is unavailable. You can sign in later from the account menu.'}</p>}
         <div className="dshDesktopAccountActions">
-          <Button variant="primary" disabled={busy || accountStatus !== 'signed-out'} onClick={() => { void dismiss(true) }}>{zh ? '登录 DeepSeek' : 'Sign in to DeepSeek'}</Button>
+          <Button variant="primary" disabled={busy || !omnimux && accountStatus !== 'signed-out'} onClick={() => { void dismiss(true) }}>{signInLabel}</Button>
           <Button variant="outline" disabled={busy} onClick={() => { void dismiss(false) }}>{zh ? '暂时跳过' : 'Not now'}</Button>
         </div>
       </div>

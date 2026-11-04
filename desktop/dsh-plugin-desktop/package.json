@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-desktop",
-  "version": "2.0.18",
+  "version": "2.0.21",
   "description": "OmniMux: an Electron shell composed as a DeepSeek Harness Cordis plugin",
   "desktopName": "omnimux.desktop",
   "license": "MIT",
@@ -165,7 +165,7 @@
     "stage:preset": "node scripts/stage-preset-profile.ts"
   },
   "dependencies": {
-    "@agents-anywhere/dsh-bridge-next": "file:../vendor/agents-anywhere/agents-anywhere-dsh-bridge-next-2.1.0-desktop.cb9f491df9a97.r7504932a.tgz",
+    "@agents-anywhere/dsh-bridge-next": "file:../vendor/agents-anywhere/agents-anywhere-dsh-bridge-next-2.1.0-desktop.c46f5479651eb.r7504932a.tgz",
     "@deepseek-ai/cordis": "4.0.5",
     "@deepseek-ai/cordis-plugin-group": "1.0.5",
     "@deepseek-ai/cordis-plugin-include": "1.0.10",
@@ -345,7 +345,7 @@
     "@deepseek-ai/schemastery": "^3.18.5",
     "adm-zip": "^0.6.0",
     "dsh-community-market": "0.1.0-dev.0",
-    "dshmarket": "1.70.1",
+    "dshmarket": "1.73.8",
     "fs-ext": "2.1.1",
     "koffi": "3.1.5",
     "node-addon-require-builtin": "^0.1.9",
@@ -458,7 +458,7 @@
           "to": "runtime"
         }
       ],
-      "icon": "build/app-icon.icon",
+      "icon": "build/app-icon.icns",
       "mergeASARs": false,
       "notarize": true,
       "signIgnore": [
@@ -467,6 +467,9 @@
       ],
       "x64ArchFiles": "{**/node_modules/{@dataiku/uv-darwin-*/**,@deepseek-ai/node-addon-system-darwin-*/**,node-pty/prebuilds/darwin-*/**,fs-ext/prebuilds/darwin-*/**,node-addon-require-builtin-darwin-*/**,@vscode/ripgrep-darwin-*/**,@img/sharp-darwin-*/**,@img/sharp-libvips-darwin-*/**,@koromix/koffi-darwin-*/**,@deepseek-ai/libreoffice-kit-darwin-*/**,meshcall-router-darwin-*/**,sherpa-onnx-darwin-*/**},Contents/Resources/runtime/**,Contents/Resources/runtime/**/.*/**}",
       "asar": false
+    },
+    "dmg": {
+      "icon": "build/app-icon.icns"
     },
     "win": {
       "asar": false,
@@ -539,9 +542,6 @@
       "packageCategory": "devel",
       "priority": "optional"
     },
-    "npmRebuild": false,
-    "dmg": {
-      "icon": "build/app-icon.icns"
-    }
+    "npmRebuild": false
   }
 }

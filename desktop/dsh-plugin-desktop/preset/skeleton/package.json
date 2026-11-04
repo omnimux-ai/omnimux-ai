@@ -14,8 +14,7 @@
         "omnimux-accounts",
         "omnimux-publish",
         "omnimux-analytics",
-        "omnimux-forms",
-        "omnimux-automation"
+        "omnimux-forms"
       ]
     }
   }

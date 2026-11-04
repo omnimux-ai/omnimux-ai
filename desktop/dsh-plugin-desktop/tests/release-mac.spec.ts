@@ -25,6 +25,7 @@ function baseOptions(
     platform: 'darwin',
     desktopRoot: '/repo/dsh-plugin-desktop',
     outputDir: '/repo/dsh-plugin-desktop/dist/mac-release',
+    releaseArch: 'universal',
     resetOutput: () => undefined,
     listCodeSigningIdentities: identityEnv => {
       identityEnvironments.push({ ...identityEnv })

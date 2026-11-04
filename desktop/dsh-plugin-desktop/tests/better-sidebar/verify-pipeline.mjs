@@ -68,10 +68,13 @@ const { stagePresetProfile } = await import(pathToFileURL(stagePath).href)
 const first = buildPatchedBetterSidebar(join(workRoot, 'first'))
 const firstHashes = hashes(first.packedRoot)
 
+// Mirrors config/plugin-tiers.json (preview + beta, the tiers stagePresetProfile
+// stages): the stage asserts every one of these has a source directory, so the
+// fixture must cover the full list.
 const productNames = [
   'omnimux', 'omnimux-accounts', 'omnimux-assets', 'omnimux-products',
   'omnimux-workflow', 'omnimux-market', 'omnimux-inspiration', 'omnimux-clip',
-  'omnimux-video', 'omnimux-analytics', 'omnimux-publish',
+  'omnimux-video', 'omnimux-analytics', 'omnimux-publish', 'omnimux-forms',
 ]
 const pluginsRoot = join(workRoot, 'product-plugins')
 for (const name of productNames) {
@@ -79,9 +82,22 @@ for (const name of productNames) {
   mkdirSync(root, { recursive: true })
   writeFileSync(join(root, 'package.json'), `${JSON.stringify({ name, version: '1.0.0', main: 'index.js' })}\n`)
   writeFileSync(join(root, 'index.js'), 'export {}\n')
+  // stagePresetProfile writes release-channel.json into the staged hub's
+  // src/, and copyPluginSources only creates what the source has.
+  mkdirSync(join(root, 'src'), { recursive: true })
 }
+// stagePresetProfile validates the hub's lifecycle registry and release
+// channel before copying anything, so the fixture has to carry both. They are
+// the minimum the validator accepts, not a replica of the product values.
+const hubSrc = join(pluginsRoot, 'omnimux', 'src')
+mkdirSync(hubSrc, { recursive: true })
+writeFileSync(join(hubSrc, 'plugin-lifecycle.json'), `${JSON.stringify({ omnimux: { stage: 'alpha', toolPrefixes: ['omnimux_'] } }, null, 2)}\n`)
+writeFileSync(join(hubSrc, 'release-channel.json'), `${JSON.stringify({ channel: 'development' }, null, 2)}\n`)
 const presetDir = join(workRoot, 'preset')
-stagePresetProfile({ pluginsRoot, presetDir })
+// `development` keeps the Alpha-stage hub in the copy set: the default
+// `production` channel deliberately excludes it, which leaves the staged hub
+// without the src/ tree writeReleaseChannel needs.
+stagePresetProfile({ pluginsRoot, presetDir, releaseChannel: 'development' })
 const installed = join(presetDir, 'plugins/dsh-better-sidebar')
 verifyInstalledBetterSidebar(installed, first.packedRoot)
 const stagedHashes = Object.fromEntries(Object.keys(firstHashes).map(path => [

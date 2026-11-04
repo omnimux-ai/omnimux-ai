@@ -16,10 +16,18 @@ import {
 /** Desktop platforms with a fixed installer download endpoint. */
 export type DesktopDownloadPlatform = 'darwin' | 'win32'
 
-/** Fixed download endpoints that serve the latest installer from the distribution bucket. */
+/**
+ * Fixed download endpoints that serve the latest installer from the distribution bucket.
+ *
+ * `darwin` points at the arm64 build because that is the only macOS artifact this
+ * release line publishes: a universal DMG carried a second copy of every native
+ * dependency (LibreOffice, uv, sherpa, sharp, koffi) for an Intel audience that
+ * does not exist yet. `OmniMux-universal.dmg` stays available as a manual alias so
+ * an older client asking for it still resolves.
+ */
 export const DESKTOP_DOWNLOAD_URLS: Readonly<Record<DesktopDownloadPlatform, string>> = {
-  darwin: 'https://dl.omnimux.ai/releases/latest/OmniMux-universal.dmg',
-  win32: 'https://dl.omnimux.ai/releases/latest/OmniMux-Setup.exe',
+  darwin: `https://dl.omnimux.ai/releases/latest/OmniMux-${process.arch === 'x64' ? 'x64' : 'arm64'}.dmg`,
+  win32: 'https://dl.omnimux.ai/releases/latest/OmniMux-x64-Setup.exe',
 }
 
 /** Header pinning a download request and response to the checked release. */
@@ -27,6 +35,15 @@ export const DESKTOP_TARGET_VERSION_HEADER = 'X-DSH-Desktop-Target-Version'
 
 /** Maximum accepted installer size, in bytes. */
 export const MAX_UPDATE_DOWNLOAD_BYTES = 1024 * 1024 * 1024
+
+/** Minimum installer size (16 MiB) before activating multi-connection Range downloading. */
+export const PARALLEL_DOWNLOAD_MIN_BYTES = 16 * 1024 * 1024
+
+/** Target byte size (8 MiB) of each Range request in parallel mode. */
+export const PARALLEL_DOWNLOAD_CHUNK_BYTES = 8 * 1024 * 1024
+
+/** Default number of concurrent Range connections for large installers. */
+export const PARALLEL_DOWNLOAD_CONCURRENCY = 8
 
 /** Failure categories exposed to the update coordinator. */
 export type UpdateDownloadErrorCode =
@@ -76,6 +93,17 @@ export interface DownloadDesktopUpdateOptions {
   readonly expectedSha256?: string
   /** Progress after each bounded chunk; omitted by existing Desktop callers. */
   readonly onProgress?: (received: number, total: number | undefined) => void
+  /**
+   * Optional tuning for multi-connection Range downloading of large installers.
+   * When the initial response advertises `Accept-Ranges: bytes` and a valid
+   * `Content-Length` at least `minBytes` (default 16 MiB), the remaining byte
+   * slices are fetched concurrently over `concurrency` workers (default 8).
+   */
+  readonly parallel?: {
+    readonly concurrency?: number
+    readonly chunkBytes?: number
+    readonly minBytes?: number
+  }
 }
 
 /** Typed failure from installer request, validation, or cancellation. */
@@ -184,10 +212,32 @@ export async function downloadDesktopUpdate(options: DownloadDesktopUpdateOption
 
   let failure: unknown
   try {
-    const declared = Number(response.headers.get('content-length'))
-    await writeResponseBody(paths.temporary, response.body, options.signal, received => {
-      options.onProgress?.(received, Number.isFinite(declared) && declared > 0 ? declared : undefined)
-    })
+    const declaredHeader = response.headers.get('content-length')
+    const declared = declaredHeader !== null && DECIMAL_BYTES.test(declaredHeader) ? Number(declaredHeader) : Number.NaN
+    const acceptsRanges = /\bbytes\b/iu.test(response.headers.get('accept-ranges') ?? '')
+    const minBytes = Math.max(1024, options.parallel?.minBytes ?? PARALLEL_DOWNLOAD_MIN_BYTES)
+    const chunkBytes = Math.max(1024, options.parallel?.chunkBytes ?? PARALLEL_DOWNLOAD_CHUNK_BYTES)
+    const concurrency = Math.max(1, Math.min(16, options.parallel?.concurrency ?? PARALLEL_DOWNLOAD_CONCURRENCY))
+    if (acceptsRanges && concurrency > 1 && Number.isSafeInteger(declared) && declared >= minBytes && declared > chunkBytes) {
+      await writeResponseBodyParallel({
+        filename: paths.temporary,
+        initialBody: response.body,
+        totalBytes: declared,
+        chunkBytes,
+        concurrency,
+        etag: response.headers.get('etag') ?? undefined,
+        channel,
+        version: options.version,
+        url: DESKTOP_DOWNLOAD_URLS[platform],
+        request: options.request,
+        signal: options.signal,
+        onProgress: received => { options.onProgress?.(received, declared) },
+      })
+    } else {
+      await writeResponseBody(paths.temporary, response.body, options.signal, received => {
+        options.onProgress?.(received, Number.isFinite(declared) && declared > 0 ? declared : undefined)
+      })
+    }
     throwIfAborted(options.signal)
     await validateArtifact(paths.temporary, platform)
     if (expectedSha256 !== undefined) {
@@ -548,6 +598,188 @@ async function writeAll(
     const result = await handle.write(chunk, offset, chunk.byteLength - offset, null)
     if (result.bytesWritten === 0) throw new Error('The update installer write made no progress.')
     offset += result.bytesWritten
+  }
+}
+
+async function writeAllAt(
+  handle: Awaited<ReturnType<typeof open>>,
+  chunk: Uint8Array,
+  position: number,
+  length: number = chunk.byteLength,
+): Promise<void> {
+  let offset = 0
+  while (offset < length) {
+    const result = await handle.write(chunk, offset, length - offset, position + offset)
+    if (result.bytesWritten === 0) throw new Error('The update installer write made no progress.')
+    offset += result.bytesWritten
+  }
+}
+
+interface ParallelWriteOptions {
+  readonly filename: string
+  readonly initialBody: ReadableStream<Uint8Array>
+  readonly totalBytes: number
+  readonly chunkBytes: number
+  readonly concurrency: number
+  readonly etag: string | undefined
+  readonly channel: DesktopReleaseChannel
+  readonly version: string
+  readonly url: string
+  readonly request: UpdateArtifactRequest
+  readonly signal: AbortSignal | undefined
+  readonly onProgress?: (received: number) => void
+}
+
+/**
+ * Consume the first chunk from the already-opened initial response while
+ * spawning up to `concurrency - 1` Range workers for the remaining byte
+ * slices, writing all slices into `filename` at their exact offsets.
+ */
+async function writeResponseBodyParallel(options: ParallelWriteOptions): Promise<void> {
+  const { filename, initialBody, totalBytes, chunkBytes, concurrency, etag, channel, version, url, request, signal, onProgress } = options
+  const handle = await open(filename, 'wx', PRIVATE_FILE_MODE)
+  const controller = new AbortController()
+  const onCallerAbort = (): void => { controller.abort(signal?.reason) }
+  if (signal !== undefined) {
+    if (signal.aborted) controller.abort(signal.reason)
+    else signal.addEventListener('abort', onCallerAbort, { once: true })
+  }
+  const combinedSignal = controller.signal
+
+  const slices: Array<{ readonly start: number; readonly end: number }> = []
+  for (let start = chunkBytes; start < totalBytes; start += chunkBytes) {
+    slices.push({ start, end: Math.min(totalBytes - 1, start + chunkBytes - 1) })
+  }
+
+  let totalReceived = 0
+  const recordBytes = (delta: number): void => {
+    totalReceived += delta
+    onProgress?.(totalReceived)
+  }
+
+  const consumeInitialPrefix = async (): Promise<void> => {
+    const firstSliceLimit = Math.min(totalBytes, chunkBytes)
+    const reader = initialBody.getReader()
+    let written = 0
+    try {
+      while (written < firstSliceLimit) {
+        throwIfAborted(signal)
+        if (combinedSignal.aborted) throw combinedSignal.reason
+        const step = await reader.read()
+        throwIfAborted(signal)
+        if (combinedSignal.aborted) throw combinedSignal.reason
+        if (step.done) break
+        const remaining = firstSliceLimit - written
+        const toWrite = Math.min(step.value.byteLength, remaining)
+        if (toWrite > 0) {
+          await writeAllAt(handle, step.value, written, toWrite)
+          written += toWrite
+          recordBytes(toWrite)
+        }
+      }
+      if (written < firstSliceLimit) {
+        throw new UpdateDownloadError('network', 'The update download stream ended before completing the initial range.')
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined)
+      reader.releaseLock()
+    }
+  }
+
+  const downloadSlice = async (slice: { readonly start: number; readonly end: number }): Promise<void> => {
+    const expectedLength = slice.end - slice.start + 1
+    let response: Response
+    let finalUrl: string
+    try {
+      const settled = await request(url, {
+        method: 'GET',
+        headers: {
+          [DESKTOP_RELEASE_CHANNEL_HEADER]: channel,
+          [DESKTOP_TARGET_VERSION_HEADER]: version,
+          Range: `bytes=${String(slice.start)}-${String(slice.end)}`,
+          ...(etag === undefined ? {} : { 'If-Range': etag }),
+        },
+        cache: 'no-store',
+        redirect: 'follow',
+        signal: combinedSignal,
+      })
+      response = settled.response
+      finalUrl = settled.finalUrl
+    } catch (cause) {
+      if (signal?.aborted === true || isAbortFailure(cause)) throw aborted(cause)
+      throw new UpdateDownloadError('network', 'A parallel update range request failed.', { cause })
+    }
+
+    try {
+      assertSecureDownloadUrl(finalUrl)
+    } catch (cause) {
+      await discardResponseBody(response)
+      throw cause
+    }
+
+    if (response.status !== 206) {
+      await discardResponseBody(response)
+      throw new UpdateDownloadError(
+        'http-status',
+        `The update download service returned HTTP ${String(response.status)} for a byte-range request.`,
+        { status: response.status },
+      )
+    }
+    if (response.body === null) {
+      throw new UpdateDownloadError('empty-body', 'The update download service returned an empty range body.')
+    }
+
+    const reader = response.body.getReader()
+    let written = 0
+    try {
+      while (true) {
+        throwIfAborted(signal)
+        if (combinedSignal.aborted) throw combinedSignal.reason
+        const step = await reader.read()
+        throwIfAborted(signal)
+        if (combinedSignal.aborted) throw combinedSignal.reason
+        if (step.done) break
+        if (written + step.value.byteLength > expectedLength) {
+          throw new UpdateDownloadError('response-too-large', 'A parallel update range exceeded its requested byte slice.')
+        }
+        await writeAllAt(handle, step.value, slice.start + written, step.value.byteLength)
+        written += step.value.byteLength
+        recordBytes(step.value.byteLength)
+      }
+      if (written !== expectedLength) {
+        throw new UpdateDownloadError('network', 'A parallel update range ended prematurely.')
+      }
+    } catch (cause) {
+      await reader.cancel(cause).catch(() => undefined)
+      throw cause
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  let nextSliceIndex = 0
+  const runRangeWorker = async (): Promise<void> => {
+    while (true) {
+      const index = nextSliceIndex
+      nextSliceIndex += 1
+      const slice = slices[index]
+      if (slice === undefined) return
+      await downloadSlice(slice)
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, concurrency - 1), slices.length)
+  try {
+    await Promise.all([
+      consumeInitialPrefix().catch(cause => { controller.abort(cause); throw cause }),
+      ...Array.from({ length: workerCount }, () =>
+        runRangeWorker().catch(cause => { controller.abort(cause); throw cause }),
+      ),
+    ])
+    await handle.sync()
+  } finally {
+    signal?.removeEventListener('abort', onCallerAbort)
+    await handle.close()
   }
 }
 

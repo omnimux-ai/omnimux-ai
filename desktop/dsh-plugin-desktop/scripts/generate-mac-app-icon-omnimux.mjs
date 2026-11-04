@@ -8,7 +8,9 @@
  * mask, and a rounded source would double-round and eat the Dock safe area.
  */
 
-import { writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
@@ -28,6 +30,55 @@ export const MAC_APP_ICON_CORNER_RADIUS_RATIO = 0.2237
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const sourcePath = join(packageRoot, 'build', 'app-icon.png')
 const outputPath = join(packageRoot, 'build', 'app-icon-mac.png')
+const icnsPath = join(packageRoot, 'build', 'app-icon.icns')
+
+/**
+ * The slices `iconutil` packs into one `.icns`.
+ *
+ * electron-builder copies this file into the bundle as `Contents/Resources/icon.icns`,
+ * which is what the Dock renders: a set that stops at 256 leaves Retina Dock icons
+ * upscaled from a quarter-size bitmap.
+ */
+export const MAC_ICONSET_ENTRIES = Object.freeze([
+  ['icon_16x16.png', 16],
+  ['icon_16x16@2x.png', 32],
+  ['icon_32x32.png', 32],
+  ['icon_32x32@2x.png', 64],
+  ['icon_128x128.png', 128],
+  ['icon_128x128@2x.png', 256],
+  ['icon_256x256.png', 256],
+  ['icon_256x256@2x.png', 512],
+  ['icon_512x512.png', 512],
+  ['icon_512x512@2x.png', 1024],
+])
+
+/**
+ * Pack a 1024 RGBA PNG into the multi-size `.icns` macOS needs.
+ *
+ * `iconutil` is a macOS tool, so other platforms keep the committed `.icns`
+ * untouched instead of failing the whole build.
+ * @param {Buffer} png - Rendered 1024x1024 icon.
+ * @param {string} [destination] - Output `.icns` path.
+ * @returns {Promise<boolean>} Whether a new `.icns` was written.
+ */
+export async function writeMacAppIconIcns(png, destination = icnsPath) {
+  if (process.platform !== 'darwin') return false
+  const workRoot = await mkdtemp(join(tmpdir(), 'omnimux-app-icon-'))
+  try {
+    const iconsetDir = join(workRoot, 'app-icon.iconset')
+    await mkdir(iconsetDir, { recursive: true })
+    for (const [name, size] of MAC_ICONSET_ENTRIES) {
+      await sharp(png, { failOn: 'none' })
+        .resize(size, size, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+        .png({ compressionLevel: 9 })
+        .toFile(join(iconsetDir, name))
+    }
+    execFileSync('iconutil', ['-c', 'icns', iconsetDir, '-o', destination], { stdio: 'inherit' })
+    return true
+  } finally {
+    await rm(workRoot, { recursive: true, force: true })
+  }
+}
 
 /**
  * Build an SVG rounded-rect alpha mask for a square canvas.
@@ -101,6 +152,7 @@ export async function generateMacAppIconOmnimux(
     .png({ compressionLevel: 9 })
     .toBuffer()
   await writeFile(output, rendered)
+  await writeMacAppIconIcns(rendered)
 }
 
 const invokedPath = process.argv[1]

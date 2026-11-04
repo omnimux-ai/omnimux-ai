@@ -38,6 +38,12 @@ import { removeLinkProjectionsSafely } from './link-projections.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
 import { RETIRED_SCHEDULE_BUNDLE, retiredSchedulePatch, SCHEDULE_RETIREMENT_MARKER } from './profile-schedule.ts'
 import {
+  NATIVE_PICKER_BACKEND,
+  NATIVE_PICKER_SURFACE,
+  agentPresetPatchOptions,
+  composeShippedAgentPresetRows,
+} from './agent-preset-rows.ts'
+import {
   desktopBrowserAccessAvailable,
   desktopBrowserAccessEnabled,
   desktopNetworkExposureForBrowserAccess,
@@ -1203,6 +1209,57 @@ export function shippedSkillRoot(moduleUrl: string = import.meta.url): string {
   return join(dirname(require.resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
 }
 
+/**
+ * Whether this installation resolves one package specifier.
+ *
+ * The picker and preset overlays below only mount packages the installation
+ * actually carries; resolving here keeps an older kernel bootable instead of
+ * failing the whole composition on a row it cannot load.
+ * @param name - Package specifier to resolve from the shell's own module URL.
+ * @returns True when Node's resolver finds the package.
+ */
+function resolvesFromInstallation(name: string): boolean {
+  try {
+    createRequire(import.meta.url).resolve(name)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Directory-picker interactions a profile may pin instead of the adaptive row. */
+const PICKER_INTERACTIONS = Object.freeze({
+  native: Object.freeze({
+    backend: NATIVE_PICKER_BACKEND,
+    surface: NATIVE_PICKER_SURFACE,
+    packages: Object.freeze([NATIVE_PICKER_BACKEND, NATIVE_PICKER_SURFACE]),
+  }),
+  browse: Object.freeze({
+    backend: BROWSE_PICKER_BACKEND,
+    surface: BROWSE_PICKER_SURFACE,
+    packages: Object.freeze([BROWSE_PICKER_BACKEND, BROWSE_PICKER_SURFACE]),
+  }),
+} as const)
+
+/** Which directory-picker interaction a profile asks for. */
+export type DesktopDirectoryPickerChoice = 'auto' | 'native' | 'browse'
+
+/**
+ * Read `desktop-shell.directoryPicker`, the explicit picker interaction.
+ *
+ * The default stays `auto`: the adaptive row is correct whenever remote
+ * authorities may reach the Host, and a pinned interaction only makes sense for
+ * a profile that knows its own audience.
+ * @param shellRow - The composed `desktop-shell` row.
+ * @returns The requested interaction, `auto` when the field is absent.
+ */
+function readDesktopDirectoryPicker(shellRow: EntryOptions | undefined): DesktopDirectoryPickerChoice {
+  const choice = rowConfig(shellRow).directoryPicker
+  if (choice === undefined || choice === 'auto') return 'auto'
+  if (choice === 'native' || choice === 'browse') return choice
+  throw new Error(`${BIN_NAME}: desktop-shell config directoryPicker must be auto, native, or browse`)
+}
+
 /** Read a row's object config without trusting arbitrary YAML values. */
 function rowConfig(row: EntryOptions | undefined): Record<string, unknown> {
   const config = row?.config
@@ -1869,25 +1926,6 @@ export function prepareDesktopProfile(
     if (!rows.has(DIRECTORY_PICKER_ROW_ID)) {
       throw new Error(`${BIN_NAME}: desktop profile has no directory-picker row`)
     }
-    patches.push(
-      {
-        id: DIRECTORY_PICKER_ROW_ID,
-        name: AUTO_PICKER_PACKAGE,
-        disabled: true,
-      },
-      {
-        insert: [
-          {
-            id: 'desktop-directory-picker-browse-host',
-            name: BROWSE_PICKER_BACKEND,
-          },
-          {
-            id: 'desktop-directory-picker-browse-surface',
-            name: BROWSE_PICKER_SURFACE,
-          },
-        ],
-      },
-    )
     const pwshSandbox = rows.get(PWSH_SANDBOX_ROW_ID)
     if (pwshSandbox?.name === UPSTREAM_PWSH_SANDBOX_PACKAGE
       && !rowDisabledOnPlatform(pwshSandbox, platform)) {
@@ -1935,6 +1973,39 @@ export function prepareDesktopProfile(
       )
     }
   }
+  // The adaptive row falls back to the in-app browser as soon as remote
+  // authorities are trusted, which Desktop's LAN and tray features turn on. A
+  // profile may pin one interaction explicitly instead: `native` keeps the OS
+  // chooser even then, `browse` keeps the in-app one on every host.
+  const configuredPicker = readDesktopDirectoryPicker(rows.get(DESKTOP_SHELL_ENTRY_ID))
+  // Windows cannot drive the OS chooser from the Host process, so a profile that
+  // leaves the choice alone keeps the in-app browser there — the same default the
+  // platform branch used to pin locally.
+  const pickerChoice = configuredPicker !== 'auto'
+    ? configuredPicker
+    : platform === 'win32' ? 'browse' : 'auto'
+  if (pickerChoice !== 'auto' && rows.has(DIRECTORY_PICKER_ROW_ID)) {
+    const pin = PICKER_INTERACTIONS[pickerChoice]
+    const missing = pin.packages.filter((name: string) => !resolvesFromInstallation(name))
+    if (missing.length > 0) {
+      throw new Error(
+        `${BIN_NAME}: desktop-shell config dirpicker=${pickerChoice} needs ${missing.join(', ')} in this installation`,
+      )
+    }
+    patches.push(
+      { id: DIRECTORY_PICKER_ROW_ID, name: AUTO_PICKER_PACKAGE, disabled: true },
+      {
+        insert: [
+          { id: `desktop-directory-picker-${pickerChoice}-host`, name: pin.backend },
+          { id: `desktop-directory-picker-${pickerChoice}-surface`, name: pin.surface },
+        ],
+      },
+    )
+  }
+  // 0.1.7-alpha.1 removed the filesystem preset discovery the profile's
+  // `agent-presets` roots row used to feed, so the shipped presets have to be
+  // declared as Loader rows or every session naming one fails to start.
+  patches.push(...agentPresetPatchOptions(composeShippedAgentPresetRows()))
   // Loader patches cannot change an existing row's package identity. Disable the
   // profile row by its current identity and insert the Desktop-owned provider.
   const webserverConfig = { host: desktopWebServerHost(networkExposure), port }

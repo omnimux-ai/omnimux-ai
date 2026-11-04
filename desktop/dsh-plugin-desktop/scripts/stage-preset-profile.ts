@@ -27,21 +27,41 @@ import {
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const defaultPresetDir = join(desktopRoot, 'preset')
 const defaultPluginsDir = join(defaultPresetDir, 'plugins')
-const PRODUCT_PLUGINS = [
-  'omnimux',
-  'omnimux-accounts',
-  'omnimux-assets',
-  'omnimux-products',
-  'omnimux-workflow',
-  'omnimux-market',
-  'omnimux-inspiration',
-  'omnimux-clip',
-  'omnimux-video',
-  'omnimux-analytics',
-  'omnimux-publish',
-  'omnimux-forms',
-  'omnimux-automation',
-] as const
+/** Repository-root tier config: the one place that says which plugins ship. */
+const PLUGIN_TIERS_PATH = join(resolve(desktopRoot, '..'), 'config', 'plugin-tiers.json')
+/**
+ * Every plugin the preset owns, read from the tier config instead of a copy.
+ *
+ * `infrastructure` is staged separately from its patched source, and `retired`
+ * plugins must not be staged at all: the product tree stops materializing them,
+ * so a preset that still owned one would fail the seed with the same
+ * "dependency ... must be file:.materialize-snapshots/..." recovery-window crash.
+ * Beta stays staged because Desktop ships beta plugins for internal testing;
+ * only the market withholds them.
+ */
+function readProductPlugins(): readonly string[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(readFileSync(PLUGIN_TIERS_PATH, 'utf8'))
+  } catch (error) {
+    throw new Error(`plugin tier config is unreadable (${PLUGIN_TIERS_PATH}): ${String(error)}`)
+  }
+  const tiers = (parsed as { tiers?: Record<string, unknown> } | null)?.tiers
+  if (tiers === null || typeof tiers !== 'object') {
+    throw new Error(`plugin tier config must declare a "tiers" object: ${PLUGIN_TIERS_PATH}`)
+  }
+  const names: string[] = []
+  for (const tier of ['preview', 'beta'] as const) {
+    const value = tiers[tier]
+    if (!Array.isArray(value) || value.some(name => typeof name !== 'string' || name === '')) {
+      throw new Error(`plugin tier config: tiers.${tier} must be an array of plugin names: ${PLUGIN_TIERS_PATH}`)
+    }
+    names.push(...(value as string[]))
+  }
+  return names
+}
+
+const PRODUCT_PLUGINS = readProductPlugins()
 const CORE_REQUIRED_BUNDLES = [
   '@deepseek-ai/dsh-base',
   '@deepseek-ai/dsh-web-app',

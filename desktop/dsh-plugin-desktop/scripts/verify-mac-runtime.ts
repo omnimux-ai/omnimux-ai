@@ -34,8 +34,11 @@ export function verifyDesktopMacRuntime(
   for (const { arch, directory, manifest } of verifyDesktopRuntimeTree(runtimeRoot, 'darwin', expectedDesktopVersion(desktopRoot))) {
     const entries = workspaceDependencyPaths(directory, manifest)
     if (entries.node === undefined || entries.pnpm === undefined) throw new Error(`Desktop runtime: ${directory} resolves no Node or pnpm entry`)
+    // A missing tool prints plainly; an exe running the host CPU is the last line of this block.
+    console.log(`[verify-mac] runtime ${arch} ${directory}`)
     if (signed) {
       for (const file of [entries.python, entries.node]) {
+        console.log(`[verify-mac] codesign --verify ${file}`)
         run('/usr/bin/codesign', ['--verify', '--strict', '--verbose=2', file])
         if (!/\bflags=0x[0-9a-f]+\(runtime\)(?:\s|$)/iu.test(run('/usr/bin/codesign', ['--display', '--verbose=4', file]))) {
           throw new Error(`Desktop runtime: ${file} is not signed with the hardened runtime`)
@@ -50,8 +53,11 @@ export function verifyDesktopMacRuntime(
       if (python.length > 0) throw new Error(`Desktop runtime: ${entries.python} must carry no entitlements; found ${python.join(', ')}`)
     }
     if (arch !== process.arch) continue
+    console.log(`[verify-mac] exec python imports`)
     run(entries.python, ['-I', '-B', '-c', 'import numpy, pandas, docx, pptx, openpyxl, PIL, lxml, xlsxwriter'])
+    console.log(`[verify-mac] exec node -e version`)
     run(entries.node, ['-e', `if (process.versions.node !== ${JSON.stringify(manifest.node)}) process.exit(1)`])
+    console.log(`[verify-mac] exec node pnpm --version`)
     run(entries.node, [entries.pnpm, '--version'])
   }
 }

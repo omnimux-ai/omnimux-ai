@@ -61,21 +61,18 @@ const PRODUCT_PLUGINS = [
   'omnimux-analytics',
   'omnimux-publish',
   'omnimux-forms',
-  'omnimux-automation',
 ] as const
 const ALPHA_PLUGINS = [
   'omnimux-accounts',
   'omnimux-publish',
   'omnimux-analytics',
   'omnimux-forms',
-  'omnimux-automation',
 ] as const
 const LIFECYCLE = {
   'omnimux-accounts': { stage: 'alpha', toolPrefixes: ['omnimux_accounts_'] },
   'omnimux-publish': { stage: 'alpha', toolPrefixes: ['omnimux_publish_'] },
   'omnimux-analytics': { stage: 'alpha', toolPrefixes: ['omnimux_analytics_'] },
   'omnimux-forms': { stage: 'alpha', toolPrefixes: ['omnimux_forms_'] },
-  'omnimux-automation': { stage: 'alpha', toolPrefixes: ['automation_'] },
 } as const
 
 describe('stagePresetProfile', () => {
@@ -168,7 +165,7 @@ describe('stagePresetProfile', () => {
       )
 
       sidebarFixture.path = sidebar
-      expect(stagePresetProfile({ pluginsRoot, presetDir, releaseChannel: 'development' })).toBe(17)
+      expect(stagePresetProfile({ pluginsRoot, presetDir, releaseChannel: 'development' })).toBe(16)
       const stagedPresets = join(presetDir, 'agent-presets')
       expect(readdirSync(stagedPresets).sort()).toEqual(['cordis', 'daily-work', 'standard', 'tiktok-agent'])
       expect(readFileSync(join(stagedPresets, 'cordis', 'preset.yml'), 'utf8')).toBe('name: cordis\n')
@@ -319,7 +316,7 @@ describe('stagePresetProfile', () => {
       })
 
       sidebarFixture.path = sidebar
-      expect(stagePresetProfile({ pluginsRoot, presetDir, releaseChannel: 'development' })).toBe(14)
+      expect(stagePresetProfile({ pluginsRoot, presetDir, releaseChannel: 'development' })).toBe(13)
       expect(listPackageNames(join(presetDir, 'plugins'))).not.toContain('@fixture/excluded')
       expect(readJson(join(presetDir, 'owned-packages.json'))).not.toContain('@fixture/excluded')
     } finally {
@@ -420,7 +417,7 @@ describe('stagePresetProfile', () => {
       createProductPlugins(pluginsRoot)
       createPresetSkeleton(presetDir)
 
-      expect(stagePresetProfile({ pluginsRoot, presetDir, releaseChannel: 'development' })).toBe(14)
+      expect(stagePresetProfile({ pluginsRoot, presetDir, releaseChannel: 'development' })).toBe(13)
 
       const output = join(presetDir, 'plugins')
       const owned = readJson(join(presetDir, 'owned-packages.json')) as unknown as string[]
@@ -478,7 +475,7 @@ describe('stagePresetProfile', () => {
       const skeleton = readJson(join(presetDir, 'skeleton', 'package.json'))
       const declared = (skeleton.dsh.profile.bundles as string[])
         .filter((name: string) => !name.startsWith('@deepseek-ai/'))
-      expect(declared).toContain('omnimux-automation')
+      expect(declared).toContain('omnimux-forms')
       for (const name of declared) {
         expect(existsSync(join(presetDir, 'plugins', name, 'package.json'))).toBe(true)
       }

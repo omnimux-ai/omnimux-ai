@@ -836,7 +836,7 @@ describe('published package surface', () => {
   it('fixes the installed application identity', () => {
     // verify-version.mjs keeps the root and desktop versions equal.
     expect(workspaceManifest.version).toBe(manifest.version)
-    expect(manifest.version).toBe('2.0.18')
+    expect(manifest.version).toBe('2.0.21')
     expect(manifest.build?.productName).toBe('OmniMux')
     expect(manifest.build?.appId).toBe('ai.omnimux.desktop')
     expect(manifest.build?.asar).toBe(false)
@@ -872,7 +872,7 @@ describe('published package surface', () => {
       '!node_modules/node-pty/build/**',
       '!node_modules/fs-ext/build/**',
     ])
-    expect(manifest.build?.mac?.icon).toBe('build/app-icon.icon')
+    expect(manifest.build?.mac?.icon).toBe('build/app-icon.icns')
     expect(manifest.build?.dmg?.icon).toBe('build/app-icon.icns')
     expect(manifest.build?.mac?.mergeASARs).toBe(false)
     expect(manifest.build?.mac?.signIgnore).toEqual(['\\.(?:pak|dat|wasm)$', '/Contents/Resources/runtime/(?:arm64|x64)/primary-runtime(?:/|$)'])
@@ -1018,7 +1018,11 @@ describe('published package surface', () => {
     )
     const macosJob = ciWorkflow.slice(
       ciWorkflow.indexOf('  desktop-macos:'),
-      ciWorkflow.indexOf('  upstream-command-windows:'),
+      ciWorkflow.indexOf('  macos-universal:'),
+    )
+    const universalJob = ciWorkflow.slice(
+      ciWorkflow.indexOf('  macos-universal:'),
+      ciWorkflow.indexOf('  desktop-next-windows:'),
     )
 
     // OmniMux keeps a single shell line, so the packaging jobs name the workspace
@@ -1029,6 +1033,11 @@ describe('published package surface', () => {
     expect(windowsJob).toContain('run: yarn workspace dsh-plugin-desktop dist:win')
     expect(windowsJob).toContain('run: yarn workspace dsh-plugin-desktop dist:win-portable')
     expect(windowsJob).toContain('DSH_PACKAGE_CHECK_ALREADY_RAN: \'1\'')
+    // The portable archive reuses the installer's unpacked tree instead of
+    // assembling the runtime a second time, and CI skips publish-only compression.
+    expect(windowsJob).toContain('DSH_WINDOWS_REUSE_UNPACKED: \'1\'')
+    expect(windowsJob).toContain('DSH_WINDOWS_PACKAGE_COMPRESSION: store')
+    expect(windowsJob.indexOf('dist:win\n')).toBeLessThan(windowsJob.indexOf('dist:win-portable'))
     // OmniMux ships no Linux job: the packaging lane stays macOS + Windows.
     expect(ciWorkflow).not.toContain('desktop-linux:')
     expect(macosJob).not.toContain('- run: yarn check')
@@ -1037,32 +1046,56 @@ describe('published package surface', () => {
     expect(macosJob).toContain('run: yarn workspace dsh-plugin-desktop dist:mac-smoke')
     expect(macosJob).toContain('DSH_PACKAGE_CHECK_ALREADY_RAN: \'1\'')
     expect(macosJob).not.toContain('- run: yarn dist:mac-smoke')
-    // Pull requests skip the universal merge; master pushes still package it.
-    expect(macosJob).not.toContain('DSH_MAC_SMOKE_ARCH')
-    expect(macosJob).not.toContain('DSH_MAC_PACKAGE_COMPRESSION')
+    // Every PR packages one CPU; the lipo merge lives in its own conditional job.
+    expect(macosJob).toContain('DSH_MAC_SMOKE_ARCH: arm64')
+    expect(macosJob).toContain('DSH_MAC_PACKAGE_COMPRESSION: store')
+    expect(macosJob).not.toContain('DSH_MAC_SMOKE_ARCH: universal')
+    // The universal gate runs only when macOS packaging paths moved, and it keeps
+    // the release compression so it exercises the DMG path a release uses.
+    expect(universalJob).toContain("needs.changes.outputs.mac == 'true'")
+    expect(universalJob).toContain('DSH_MAC_SMOKE_ARCH: universal')
+    expect(universalJob).not.toContain('DSH_MAC_PACKAGE_COMPRESSION')
+    expect(universalJob).toContain('run: yarn workspace dsh-plugin-desktop dist:mac-smoke')
   })
 
   it('skips product packaging only for documentation-only changes', () => {
     const classifier = fileURLToPath(new URL('../../scripts/classify-ci-changes.mjs', import.meta.url))
-    const classify = (paths: string[]): string => execFileSync(
+    // The classifier prints one verdict per line: product, then mac.
+    const classify = (paths: string[]): string[] => execFileSync(
       process.execPath,
       [classifier],
       { input: Buffer.from(`${paths.join('\0')}\0`), encoding: 'utf8' },
-    ).trim()
+    ).trim().split('\n')
+    const product = (paths: string[]): string => classify(paths)[0]!
+    const mac = (paths: string[]): string => classify(paths)[1]!
 
-    expect(classify([
+    expect(product([
       'docs/architecture.md',
       '.agents/notes/implemented/architecture/decision.md',
       '.agents/notes/implemented/architecture/decision.i18n.yaml',
       'dsh-community-market/docs/schema.json',
       '.github/ISSUE_TEMPLATE/feature_request.yml',
     ])).toBe('false')
-    expect(classify(['README.md', 'dsh-plugin-desktop/src/index.ts'])).toBe('true')
-    expect(classify(['.github/workflows/ci.yml'])).toBe('true')
-    expect(classify(['THIRD_PARTY_NOTICES.md'])).toBe('true')
-    expect(classify([])).toBe('true')
+    expect(product(['README.md', 'dsh-plugin-desktop/src/index.ts'])).toBe('true')
+    expect(product(['.github/workflows/ci.yml'])).toBe('true')
+    expect(product(['THIRD_PARTY_NOTICES.md'])).toBe('true')
+    expect(product([])).toBe('true')
 
-    expect(ciWorkflow).toContain('product="$(git diff --name-only -z')
+    // The universal macOS gate follows the packaging scripts, not product code in
+    // general: a source-only change must not pay for the lipo merge.
+    expect(mac(['dsh-plugin-desktop/src/index.ts'])).toBe('false')
+    expect(mac(['docs/architecture.md'])).toBe('false')
+    expect(mac(['dsh-plugin-desktop/scripts/mac-universal.ts'])).toBe('true')
+    expect(mac(['dsh-plugin-desktop/scripts/package-mac.ts'])).toBe('true')
+    expect(mac(['dsh-desktop-next/scripts/package.ts'])).toBe('true')
+    expect(mac(['dsh-plugin-desktop/package.json'])).toBe('true')
+    // A ci.yml edit changes how packaging is wired, so it takes the slow path.
+    expect(mac(['.github/workflows/ci.yml'])).toBe('true')
+    // No diff (manual dispatch, undiffable push) cannot prove universal works.
+    expect(mac([])).toBe('true')
+
+    expect(ciWorkflow).toContain('node scripts/classify-ci-changes.mjs')
+    expect(ciWorkflow).toContain("mac=\"$(printf '%s\\n' \"$verdicts\" | sed -n '2p')\"")
     expect(ciWorkflow).toContain("if: needs.changes.outputs.product == 'true'")
     expect(ciWorkflow).toContain('Documentation-only change; product build and tests are not required.')
   })
@@ -1099,7 +1132,11 @@ describe('published package surface', () => {
     for (const name of ['app-icon.png', 'app-icon-mac.png', 'app-icon.icns', 'app-icon.ico']) {
       expect(readFileSync(new URL(`build/${name}`, packageRoot)).byteLength).toBeGreaterThan(0)
     }
-    expect(readFileSync(new URL('build/app-icon.icns', packageRoot)).subarray(0, 4).toString()).toBe('icns')
+    const icns = readFileSync(new URL('build/app-icon.icns', packageRoot))
+    expect(icns.subarray(0, 4).toString()).toBe('icns')
+    // `ic10` is the 512@2x slice: macOS scales the Dock icon up to 1024, so an `.icns`
+    // that stops at 256 renders as an upscaled bitmap instead of the brand icon.
+    expect(icns.includes(Buffer.from('ic10'))).toBe(true)
   })
 
   it('generates exact-DPI Windows application and installer icon frames', () => {
