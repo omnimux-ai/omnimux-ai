@@ -18,6 +18,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { marketablePlugins, withheldPlugins } from './plugin-tiers.mjs'
 
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -49,8 +50,13 @@ function repositoryHref(value) {
   return /^https?:\/\//u.test(href) ? href : undefined
 }
 
-/** Plugins we publish. Keep this list explicit so nothing ships unreviewed. */
-const PUBLISHED_PLUGINS = [
+/**
+ * Plugins we know how to describe. Whether one actually ships is decided by
+ * `config/plugin-tiers.json`: only the `preview` tier is published. Keeping the
+ * copy here (titles, categories) separate from the shipping decision is what
+ * lets a plugin move to `beta` without deleting its metadata.
+ */
+const DESCRIBED_PLUGINS = [
   {
     dir: 'omnimux',
     category: 'core',
@@ -223,6 +229,24 @@ function entryFor(pluginsRoot, spec) {
   return entry
 }
 
+/**
+ * The entries this index publishes: described plugins whose tier is `preview`.
+ *
+ * A preview plugin with no description is NOT an error: `dsh-better-sidebar` is a
+ * third-party community plugin we preinstall but do not market, and the market
+ * only lists what we author. A preview plugin that is also withheld IS an error,
+ * because the tier file would then contradict itself.
+ */
+function publishedSpecs() {
+  const preview = new Set(marketablePlugins())
+  const withheld = new Set(withheldPlugins())
+  const contradictory = [...preview].filter(name => withheld.has(name))
+  if (contradictory.length > 0) {
+    throw new Error(`plugin-tiers.json puts these plugins in preview and a withheld tier: ${contradictory.join(', ')}`)
+  }
+  return DESCRIBED_PLUGINS.filter(spec => preview.has(spec.dir))
+}
+
 function buildIndex(pluginsRoot) {
   return {
     format: 1,
@@ -240,7 +264,7 @@ function buildIndex(pluginsRoot) {
         feature: { title: { en: 'Features', zh: '功能' } },
       },
     },
-    plugins: PUBLISHED_PLUGINS.map(spec => entryFor(pluginsRoot, spec)),
+    plugins: publishedSpecs().map(spec => entryFor(pluginsRoot, spec)),
   }
 }
 
@@ -261,7 +285,7 @@ async function main() {
     ...ancestors.map(dir => join(dir, 'dsh-plugin', 'product', 'omnimux-dsh', 'plugins')),
     join(ROOT_DIR, 'dsh-plugin-desktop', 'preset', 'plugins'),
   ].filter(Boolean)
-  const pluginsRoot = candidates.find(dir => existsSync(dir) && PUBLISHED_PLUGINS.every(spec => existsSync(join(dir, spec.dir, 'package.json'))))
+  const pluginsRoot = candidates.find(dir => existsSync(dir) && marketablePlugins().every(name => existsSync(join(dir, name, 'package.json'))))
     ?? candidates.find(dir => existsSync(dir))
   if (!pluginsRoot) throw new Error(`cannot locate the plugin sources; tried:\n  ${candidates.join('\n  ')}`)
 

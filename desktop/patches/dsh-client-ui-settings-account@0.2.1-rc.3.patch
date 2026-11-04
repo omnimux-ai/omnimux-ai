@@ -1,5 +1,5 @@
 diff --git a/lib/client.js b/lib/client.js
-index 623e809..e8b98e6 100644
+index 623e809..77bb073 100644
 --- a/lib/client.js
 +++ b/lib/client.js
 @@ -904,7 +904,7 @@ window.__ModuleLoader__.load({
@@ -11,7 +11,25 @@ index 623e809..e8b98e6 100644
  			contactSource: Schema.string().default(""),
  			bonusAckRetryDelayMs: Schema.number().min(1).default(1e3),
  			bonusAckRetryMaxDelayMs: Schema.number().min(1).default(6e4)
-@@ -1767,6 +1767,131 @@ window.__ModuleLoader__.load({
+@@ -1206,6 +1206,17 @@ window.__ModuleLoader__.load({
+ 			(0, react.useEffect)(() => {
+ 				if (account.view?.status === "credential-stored") complete();
+ 			}, [account.view?.status, complete]);
++			// OmniMux: the model-credential onboarding hands sign-in to the OmniMux
++			// login gate instead of the DeepSeek dialog, then completes this step.
++			const omnimuxGate = typeof window === "undefined" ? void 0 : window.__omnimuxAuth;
++			const omnimuxOwned = typeof omnimuxGate?.ensureLogin === "function";
++			(0, react.useEffect)(() => {
++				if (!omnimuxOwned) return;
++				showLogin(false);
++				void omnimuxGate.ensureLogin({ kind: "explicit", reason: "model-sign-in" }).catch(() => void 0);
++				complete();
++			}, [omnimuxOwned]);
++			if (omnimuxOwned) return null;
+ 			if (!account.view || account.view.status === "credential-stored") return null;
+ 			return (0, react_jsx_runtime.jsx)(SignInDialog, {
+ 				account,
+@@ -1767,6 +1778,131 @@ window.__ModuleLoader__.load({
  			"trigger": "w-OKPq_trigger"
  		};
  		//#endregion
@@ -143,7 +161,7 @@ index 623e809..e8b98e6 100644
  		//#region lib/types/client/AccountMenu.js
  		/** Sidebar account launcher and locally authoritative sign-out action. */
  		/** The signed-in label stays empty while the profile loads.
-@@ -1781,6 +1906,12 @@ window.__ModuleLoader__.load({
+@@ -1781,6 +1917,12 @@ window.__ModuleLoader__.load({
  				settingsWasOpen.current = settingsOpen;
  			}, [refreshAccount, settingsOpen]);
  			const account = useAccount((state) => state);
@@ -156,7 +174,7 @@ index 623e809..e8b98e6 100644
  			const colorScheme = useTheme((snapshot) => snapshot.active.colorScheme);
  			const signedIn = account.view?.status === "credential-stored";
  			const [signInNotice, setSignInNotice] = (0, react.useState)(0);
-@@ -1849,14 +1980,23 @@ window.__ModuleLoader__.load({
+@@ -1849,14 +1991,23 @@ window.__ModuleLoader__.load({
  							type: "button",
  							className: AccountMenu_module_css_default.trigger,
  							"data-collapsed": !wide,
@@ -182,7 +200,7 @@ index 623e809..e8b98e6 100644
  								className: AccountMenu_module_css_default.avatar,
  								"data-avatar-status": account.avatar?.status,
  								children: (0, react_jsx_runtime.jsx)(AccountAvatar, {
-@@ -1865,7 +2005,7 @@ window.__ModuleLoader__.load({
+@@ -1865,7 +2016,7 @@ window.__ModuleLoader__.load({
  								})
  							}) : (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEllipsisOutlineMedium, { size: 14 }), wide && (0, react_jsx_runtime.jsx)("span", {
  								className: AccountMenu_module_css_default.label,
@@ -191,7 +209,7 @@ index 623e809..e8b98e6 100644
  							})]
  						}),
  						items: [
-@@ -1880,13 +2020,12 @@ window.__ModuleLoader__.load({
+@@ -1880,13 +2031,12 @@ window.__ModuleLoader__.load({
  								label: t("contactUs"),
  								icon: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPaperPlaneOutlineMedium, { size: 16 })
  							},
@@ -209,7 +227,7 @@ index 623e809..e8b98e6 100644
  								label: t("signIn"),
  								icon: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconUserOutlineMedium, { size: 16 })
  							}]
-@@ -1902,8 +2041,17 @@ window.__ModuleLoader__.load({
+@@ -1902,11 +2052,20 @@ window.__ModuleLoader__.load({
  							} else if (id === "contact") {
  								setOpen(false);
  								contactUs();
@@ -228,8 +246,12 @@ index 623e809..e8b98e6 100644
 +						else requestSignOut();
  						}
  					}),
- 					account.loginVisible && !account.onboarding && (0, react_jsx_runtime.jsx)(SignInDialog, {
-@@ -3480,6 +3628,7 @@ window.__ModuleLoader__.load({
+-					account.loginVisible && !account.onboarding && (0, react_jsx_runtime.jsx)(SignInDialog, {
++					account.loginVisible && !account.onboarding && typeof omnimuxAuthGlobal()?.ensureLogin !== "function" && (0, react_jsx_runtime.jsx)(SignInDialog, {
+ 						account,
+ 						colorScheme,
+ 						start,
+@@ -3480,6 +3639,7 @@ window.__ModuleLoader__.load({
  			}, [exiting]);
  			return (0, react_dom.createPortal)((0, react_jsx_runtime.jsxs)("div", {
  				className: OnboardingSurface_module_css_default.onboardingOverlay,
@@ -237,7 +259,7 @@ index 623e809..e8b98e6 100644
  				"data-exiting": exiting || void 0,
  				role: "presentation",
  				children: [(0, react_jsx_runtime.jsx)("div", {
-@@ -4177,29 +4326,16 @@ window.__ModuleLoader__.load({
+@@ -4177,29 +4337,16 @@ window.__ModuleLoader__.load({
  								children: t("onboardingRetry")
  							})]
  						}),
@@ -277,7 +299,7 @@ index 623e809..e8b98e6 100644
  						})
  					]
  				}, step)
-@@ -4241,7 +4377,46 @@ window.__ModuleLoader__.load({
+@@ -4241,7 +4388,46 @@ window.__ModuleLoader__.load({
  		* @param props - shell overlay bindings and account-owned actions.
  		* @returns the unfinished flow, retained briefly after successful completion unless motion is reduced.
  		*/
@@ -325,7 +347,7 @@ index 623e809..e8b98e6 100644
  			const locale = props.t("onboardingArtworkLocale");
  			const state = useOnboarding((value) => value);
  			const account = useAccount((value) => value);
-@@ -4302,10 +4477,38 @@ window.__ModuleLoader__.load({
+@@ -4302,10 +4488,38 @@ window.__ModuleLoader__.load({
  		* Read the same safe credential fact used by native login.
  		* @returns configured API-key presence; rejects when the desktop bridge is unavailable.
  		*/
@@ -367,7 +389,7 @@ index 623e809..e8b98e6 100644
  		}
  		//#endregion
  		//#region lib/types/client/account-refresh.js
-@@ -4698,7 +4901,7 @@ window.__ModuleLoader__.load({
+@@ -4698,7 +4912,7 @@ window.__ModuleLoader__.load({
  				}
  			};
  			if (desktop) {
@@ -376,7 +398,7 @@ index 623e809..e8b98e6 100644
  				ctx.effect(() => () => {
  					controller.dispose();
  				}, "account: desktop onboarding lifetime");
-@@ -4718,8 +4921,10 @@ window.__ModuleLoader__.load({
+@@ -4718,8 +4932,10 @@ window.__ModuleLoader__.load({
  				ctx.slots.inject("shell.overlay", () => ctx.slots.register({
  					name: "shell.overlay",
  					id: "desktop-onboarding",

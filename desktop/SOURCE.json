@@ -1,13 +1,13 @@
 {
   "component": "desktop",
   "source": "laozhong86/omnimux-desktop-fork",
-  "commit": "497af612f1b8885f8dec4f3c4c8266cbf10f02e3",
-  "exportedFiles": 1404,
+  "commit": "f225b5406f3ac096552904d0df4586d9683e645f",
+  "exportedFiles": 1414,
   "submodules": [
     {
       "path": "deepseek-harness",
       "commit": "1f81c047fc48fa190a683e469daa699857e9afe8"
     }
   ],
-  "manifestSha256": "6c4bb3b70a25f7072d71384ed4a9d867f774969c2357a58892cae75c21c68dfd"
+  "manifestSha256": "3c9ee777aa2443f0dd0128d84b4caf769daa6203279e3cfbc02c31a3a3632718"
 }

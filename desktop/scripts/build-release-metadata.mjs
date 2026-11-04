@@ -77,14 +77,16 @@ function digestFor(dir, patterns) {
 
 function buildMetadata(dir, version, channel) {
   assertChannelVersion(version, channel)
-  const mac = digestFor(dir, [/\.dmg$/u, /universal\.dmg$/u])
+  const macArm64 = digestFor(dir, [/-arm64\.dmg$/u])
+  const macX64 = digestFor(dir, [/-x64\.dmg$/u])
   const windows = digestFor(dir, [/-Setup\.exe$/u, /\.exe$/u])
   const sha256 = {}
-  if (mac) sha256.mac = mac.sha256
+  if (macArm64) sha256.macArm64 = macArm64.sha256
+  if (macX64) sha256.macX64 = macX64.sha256
   if (windows) sha256.windows = windows.sha256
   const metadata = { version, channel }
   if (Object.keys(sha256).length > 0) metadata.sha256 = sha256
-  return { metadata, mac, windows }
+  return { metadata, macArm64, macX64, windows }
 }
 
 function main() {
@@ -112,7 +114,7 @@ function main() {
 
   mkdirSync(outDir, { recursive: true })
   writeFileSync(path, serialized)
-  const parts = [built.mac && `mac ${String(built.mac.bytes)}B`, built.windows && `windows ${String(built.windows.bytes)}B`]
+  const parts = [built.macArm64 && `mac-arm64 ${String(built.macArm64.bytes)}B`, built.macX64 && `mac-x64 ${String(built.macX64.bytes)}B`, built.windows && `windows ${String(built.windows.bytes)}B`]
     .filter(Boolean).join(', ')
   console.log(`wrote ${path}${parts ? ` (${parts})` : ''}`)
 }
