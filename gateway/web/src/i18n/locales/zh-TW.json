@@ -126,6 +126,8 @@
     "{{operation}} (ID: {{id}})": "{{operation}}（ID: {{id}}）",
     "{{options}} removed: not compatible with the rest of this look in this mode.": "已移除 {{options}}：在當前模式下與其餘設定不相容。",
     "{{percent}}% OFF": "優惠 {{percent}}%",
+    "{{price}} top-up, get {{credits}}": "{{price}} top-up, get {{credits}}",
+    "{{price}} top-up, get {{credits}}, save {{saved}}": "{{price}} top-up, get {{credits}}, save {{saved}}",
     "{{processed}} of {{total}} log entries processed.": "已處理 {{processed}} / {{total}} 條日誌。",
     "{{protocol}} auth name": "{{protocol}} 驗證名稱",
     "{{protocol}} auth value": "{{protocol}} 驗證值",
@@ -9413,6 +9415,17 @@
     "Temporarily unavailable": "暫時無法使用",
     "Keep this page open": "請保持頁面開啟",
     "Up to 9 reference images": "最多 9 張參考圖",
-    "First image defines the subject": "第一張圖定義主體"
+    "First image defines the subject": "第一張圖定義主體",
+    "Add credits in Wallet and come back to continue.": "在錢包中儲值後回來繼續。",
+    "Choose an amount": "選擇金額",
+    "Opening Stripe…": "正在開啟 Stripe…",
+    "Pay with Stripe": "使用 Stripe 付款",
+    "Pay {{price}} with Stripe": "使用 Stripe 付款 {{price}}",
+    "Payment is processed by Stripe.": "付款由 Stripe 處理。",
+    "Top up in Wallet": "在錢包中儲值",
+    "Top up successful": "儲值成功",
+    "Top up to continue this generation": "儲值以繼續本次生成",
+    "Top up": "儲值",
+    "Your credits are ready — generation resumes automatically.": "點數已到帳，生成將自動繼續。"
   }
 }
