@@ -24,8 +24,9 @@ import {
   restoreBuiltinAppDefault,
   toPublishedAppEntry,
 } from './appLibrary.js'
+import { fetchAppManifest } from './builtinApps.js'
 import { fetchSessionProjectBinding, listProjects } from '../api.js'
-import { activateProjectCanvas, getBetterSidebar } from './projectCanvas.js'
+import { activateProjectCanvas, focusSessionForCanvas, getBetterSidebar } from './projectCanvas.js'
 import { ForkAppProjectDialog } from './ForkAppProjectDialog.jsx'
 import {
   resolveOptions,
@@ -434,7 +435,13 @@ function IconLink2({ size = 16, className = '' }) {
 }
 
 /**
- * Reads manifest from localStorage cache by appId or gets the newest manifest.
+ * Reads manifest from localStorage cache by appId, or the newest manifest when
+ * no appId is known (legacy tabs that only carry a title).
+ *
+ * 指定了 appId 却查不到时**必须**返回 null：官方内置应用从不写这份缓存，
+ * 若继续回落「最新一条」就会把用户最近发布的应用表单渲染到内置应用标签页上，
+ * 张冠李戴。调用方拿到 null 后再走只读接口按 appId 解析。
+ *
  * @param {string} [appId]
  * @returns {object|null}
  */
@@ -444,7 +451,8 @@ export function readCachedManifest(appId) {
     const raw = window.localStorage?.getItem('omnimux_apps_manifests')
     if (!raw) return null
     const map = JSON.parse(raw)
-    if (appId && map[appId]) return map[appId]
+    const wanted = typeof appId === 'string' ? appId.trim() : ''
+    if (wanted) return map[wanted] || null
     const values = Object.values(map)
     if (values.length > 0) {
       return values.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0]
@@ -508,6 +516,9 @@ export function AppTab(props) {
     || tabBoundAppId
 
   const [appId, setAppId] = useState(seedAppId)
+  // 「最新请求胜出」守卫：连续切应用时，先发出的慢响应不得覆盖后发的新应用。
+  // 只比对返回体的 appId 拦不住——旧响应本身就是旧应用，必须比对当前期望的 appId。
+  const requestedAppIdRef = useRef(seedAppId)
   const [manifest, setManifest] = useState(() => {
     return explicitManifest || readCachedManifest(seedAppId)
   })
@@ -529,9 +540,26 @@ export function AppTab(props) {
       const nextId = typeof detail?.appId === 'string' ? detail.appId : ''
       if (!nextId) return
       if (tabBoundAppId && tabBoundAppId !== nextId) return
+      // 先推进「最新请求胜出」守卫，再走任何分支：缓存命中是同步返回的，
+      // 若只在发请求时推进，先前那个还在飞的内置应用响应回来后守卫仍判等通过，
+      // 就会把刚点开的有缓存应用覆盖掉。
+      requestedAppIdRef.current = nextId
       setAppId(nextId)
       const next = detail?.manifest || readCachedManifest(nextId)
-      if (next) setManifest(next)
+      if (next) {
+        setManifest(next)
+        return
+      }
+      // 内置应用没有本地缓存，事件里也可能只带 appId（中枢 openApp 通道）：走只读接口解析。
+      void fetchAppManifest(nextId).then((remote) => {
+        // 慢响应晚到：此时标签页已经切到别的应用，本次结果必须丢弃。
+        if (requestedAppIdRef.current !== nextId) return
+        if (!remote) {
+          setManifest((prev) => (prev && prev.appId === nextId ? prev : null))
+          return
+        }
+        setManifest((prev) => (prev && prev.appId === remote.appId ? prev : remote))
+      })
     }
     window.addEventListener('omnimux-app-open', onAppOpen)
     return () => {
@@ -540,7 +568,14 @@ export function AppTab(props) {
   }, [tabBoundAppId])
 
   // 应用身份变化（或显式 manifest 后到）时同步面板内容。
+  // 官方内置应用从不写 localStorage：本地缓存查不到时按 appId 走只读 HTTP 缝解析，
+  // 否则内置应用的标签页会永远停在「暂无已加载的 AI 应用」。接口失败保持既有空态。
   useEffect(() => {
+    // 「最新请求胜出」守卫必须在这个 effect 的**每一条**分支之前推进：
+    // 显式 manifest 与缓存命中都是同步返回的，若只在发请求时推进，先前那个
+    // 还在飞的内置应用响应回来后守卫仍判等通过，就会覆盖掉刚切过来的应用。
+    if (explicitManifest) requestedAppIdRef.current = explicitManifest.appId || appId
+    else if (appId) requestedAppIdRef.current = appId
     if (explicitManifest) {
       setManifest((prev) => {
         if (!prev) return explicitManifest
@@ -554,12 +589,31 @@ export function AppTab(props) {
     }
     if (!appId) return
     const cached = readCachedManifest(appId)
-    if (!cached) return
-    setManifest((prev) => (
-      prev && prev.appId === cached.appId && prev.version === cached.version && prev.updatedAt === cached.updatedAt
-        ? prev
-        : cached
-    ))
+    if (cached) {
+      setManifest((prev) => (
+        prev && prev.appId === cached.appId && prev.version === cached.version && prev.updatedAt === cached.updatedAt
+          ? prev
+          : cached
+      ))
+      return
+    }
+    let cancelled = false
+    void fetchAppManifest(appId).then((remote) => {
+      // cancelled：effect 已换到别的 appId；requestedAppIdRef：慢响应晚于更新的请求。
+      if (cancelled || requestedAppIdRef.current !== appId) return
+      // 解析不出来时必须清掉旧 manifest：否则上一个应用的表单会挂在新 appId 下，
+      // 把「读不到」渲染成「这是另一个应用」。清空后走既有空态分支。
+      if (!remote) {
+        setManifest((prev) => (prev && prev.appId === appId ? prev : null))
+        return
+      }
+      setManifest((prev) => (
+        prev && prev.appId === remote.appId && prev.version === remote.version
+          ? prev
+          : remote
+      ))
+    })
+    return () => { cancelled = true }
   }, [explicitManifest, appId])
 
   // 把 chip 标题改成应用名：宿主记录表首次铸造时不通知订阅者，不主动改名的话
@@ -1245,6 +1299,18 @@ export function AppTab(props) {
     }
   }, [manifest, isRestoring, showTemporaryNotice])
 
+  // 「编辑」「创建副本」的落点是应用所属会话的画布。不先切会话，better-sidebar
+  // 会把 openTab 排队到非前台会话：当前会话毫无变化，调用方却弹成功提示（P1-2）。
+  // 返回 false = 缺会话切换能力或切换抛错，由调用方走失败降级，绝不静默成功。
+  // 目标没有 sessionId 时无需切换，直接放行（画布落在当前会话）。
+  // 现行 DSH 壳没有 sessions.open（0.1.7 起移除），统一走 focusSessionForCanvas：
+  // 优先 uiWorkspace.openSession，旧宿主才回退 sessions.open。
+  const focusAppSession = useCallback((sessionId) => focusSessionForCanvas({
+    sessions: props?.sessions,
+    cordis: props?.ctx,
+    getSessionNavigation: props?.getSessionNavigation,
+  }, sessionId), [props?.sessions, props?.ctx, props?.getSessionNavigation])
+
   // 点击「编辑应用」：根据应用归属自适应分诊
   // 同一个用户的应用直接打开所属项目画布定位工作流组；不同用户/官方预设应用则弹出「创建副本」确认窗
   const handleEditApp = useCallback(async () => {
@@ -1270,6 +1336,12 @@ export function AppTab(props) {
         const project = resolveOwningProject(projects, target)
         const canvasWorkspaceId = target.workspaceId || project?.canvasWorkspaceIds?.[0]
 
+        // 先把会话切到前台，再激活画布；切换失败直接降级，不弹「已进入画布」。
+        if (!focusAppSession(project?.sessionId)) {
+          showTemporaryNotice({ type: 'error', text: '无法切换到应用所属会话，请重试。' })
+          return
+        }
+
         if (canvasWorkspaceId && typeof localStorage !== 'undefined') {
           localStorage.setItem('omnimux:latest-active-canvas', canvasWorkspaceId)
         }
@@ -1280,8 +1352,13 @@ export function AppTab(props) {
         }
 
         const opened = await activateProjectCanvas(
-          { betterSidebar: getBetterSidebar(props?.ctx) },
-    { sessionId: project?.sessionId, focusGroupId: target.groupId },
+          {
+            betterSidebar: getBetterSidebar(props?.ctx),
+            cordis: props?.ctx,
+            sessions: props?.sessions,
+            getSessionNavigation: props?.getSessionNavigation,
+          },
+          { sessionId: project?.sessionId, focusGroupId: target.groupId },
         )
         if (opened) {
           showTemporaryNotice({ type: 'success', text: '已进入应用源画布，可直接编辑与调试。' })
@@ -1316,7 +1393,7 @@ export function AppTab(props) {
     } finally {
       setIsEditing(false)
     }
-  }, [manifest, isEditing, props?.ctx, showTemporaryNotice])
+  }, [manifest, isEditing, props?.ctx, showTemporaryNotice, focusAppSession])
 
   // 处理弹窗提交创建副本
   const handleForkSubmit = useCallback(async ({ mode, title, projectRoot }) => {
@@ -1331,19 +1408,29 @@ export function AppTab(props) {
         projectRoot,
       })
 
-      if (workspaceId && typeof localStorage !== 'undefined') {
+      // 副本已落库，但画布只在所属会话可见：先切会话，失败就明确降级，不弹成功提示。
+      const sessionReady = focusAppSession(project?.sessionId)
+
+      if (sessionReady && workspaceId && typeof localStorage !== 'undefined') {
         localStorage.setItem('omnimux:latest-active-canvas', workspaceId)
       }
-      if (workspaceId && typeof window !== 'undefined') {
+      if (sessionReady && workspaceId && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('omnimux:active-canvas-changed', {
           detail: { workspaceId },
         }))
       }
 
-      const opened = await activateProjectCanvas(
-        { betterSidebar: getBetterSidebar(props?.ctx) },
-    { sessionId: project?.sessionId, focusGroupId: groupId },
-      )
+      const opened = sessionReady
+        ? await activateProjectCanvas(
+          {
+            betterSidebar: getBetterSidebar(props?.ctx),
+            cordis: props?.ctx,
+            sessions: props?.sessions,
+            getSessionNavigation: props?.getSessionNavigation,
+          },
+          { sessionId: project?.sessionId, focusGroupId: groupId },
+        )
+        : false
       setForkDialogOpen(false)
       if (opened) {
         showTemporaryNotice({
@@ -1352,15 +1439,17 @@ export function AppTab(props) {
             ? `已在当前项目新建创作页「${title}」。`
             : `已为你创建「${title}」工程副本，编辑后可随时重新打包发布。`,
         })
-      } else {
+      } else if (sessionReady) {
         showTemporaryNotice({ type: 'error', text: '副本已创建，打开画布失败，请在项目库查看。' })
+      } else {
+        showTemporaryNotice({ type: 'error', text: '副本已创建，但无法切换到所属会话，请到项目库查看。' })
       }
     } catch (err) {
       setForkError(friendlyForkError(err?.message, '创建副本失败，请重试。'))
     } finally {
       setForkBusy(false)
     }
-  }, [manifest, forkContext, props?.ctx, showTemporaryNotice])
+  }, [manifest, forkContext, props?.ctx, showTemporaryNotice, focusAppSession])
 
   if (!manifest) {
     return (

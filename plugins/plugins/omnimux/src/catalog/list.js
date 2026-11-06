@@ -198,7 +198,7 @@ export function buildModelCatalog(opts = {}) {
     audio: media.providers?.omnimux?.models?.audio || DEFAULT_MEDIA.providers.omnimux.models.audio,
   }
 
-  /** @type {{ text: string, image: string, video: string, audio: string }} */
+  /** @type {{ text: string, image: string, video: string, audio: string, analysis?: string }} */
   const defaults = {
     text: '',
     image: '',
@@ -236,6 +236,19 @@ export function buildModelCatalog(opts = {}) {
     })
   }
 
+  // Multimodal-understanding default: the analysis scenario rides catalog.text
+  // rows but only accepts a model that can take non-text input, so the picker
+  // offers it separately from the plain-text default rather than letting the
+  // text default silently drive video/audio/document calls.
+  const savedAnalysis = trimId(settingsDefaults.defaultAnalysisModel)
+  if (savedAnalysis) {
+    const resolvedAnalysis = resolveModelId(index, savedAnalysis)
+    const compatible = resolvedAnalysis && lists.text.find((row) => row.id === resolvedAnalysis && (row.input ?? []).some((modality) => modality !== 'text'))
+    defaults.analysis = compatible ? resolvedAnalysis : ''
+  } else {
+    defaults.analysis = (lists.text.find((row) => row.id === defaults.text && (row.input ?? []).some((modality) => modality !== 'text')) ?? lists.text.find((row) => (row.input ?? []).some((modality) => modality !== 'text')))?.id ?? ''
+  }
+
   return {
     schemaVersion: CANONICAL_SCHEMA_VERSION,
     source: 'omnimux',
@@ -264,9 +277,35 @@ export function buildModelCatalog(opts = {}) {
     image: lists.image,
     video: lists.video,
     audio: lists.audio,
+    /**
+     * Canvas-only visibility: per-kind model ids the user hid in settings.
+     * Subtract-only — the lists above stay the membership authority; the
+     * canvas projection removes these from the pickers. Never enters the
+     * catalog fingerprint (the canvas `:canvas:` policy suffix owns that).
+     */
+    canvasHiddenModels: sanitizeCanvasHiddenModels(settingsDefaults.canvasHiddenModels),
     /** Gateway truth this catalog was built against (P1b). */
     gateway,
   }
+}
+
+const CANVAS_HIDDEN_KINDS = ['text', 'image', 'video', 'audio']
+
+/**
+ * Keep only usable per-kind string-id arrays; anything malformed degrades to
+ * "nothing hidden" rather than failing the whole catalog.
+ * @param {unknown} raw
+ */
+function sanitizeCanvasHiddenModels(raw) {
+  const input = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  const out = {}
+  for (const kind of CANVAS_HIDDEN_KINDS) {
+    const ids = input[kind]
+    out[kind] = Array.isArray(ids)
+      ? [...new Set(ids.filter((entry) => typeof entry === 'string' && entry.trim()).map((entry) => entry.trim()))]
+      : []
+  }
+  return out
 }
 
 /**
