@@ -126,6 +126,8 @@
     "{{operation}} (ID: {{id}})": "{{operation}} (ID : {{id}})",
     "{{options}} removed: not compatible with the rest of this look in this mode.": "{{options}} retiré : incompatible avec le reste de ce look dans ce mode.",
     "{{percent}}% OFF": "-{{percent}} %",
+    "{{price}} top-up, get {{credits}}": "{{price}} top-up, get {{credits}}",
+    "{{price}} top-up, get {{credits}}, save {{saved}}": "{{price}} top-up, get {{credits}}, save {{saved}}",
     "{{processed}} of {{total}} log entries processed.": "{{processed}} sur {{total}} entrées de journal traitées.",
     "{{protocol}} auth name": "Nom d’authentification {{protocol}}",
     "{{protocol}} auth value": "Valeur d’authentification {{protocol}}",
@@ -9413,6 +9415,17 @@
     "Temporarily unavailable": "Indisponible pour le moment",
     "Keep this page open": "Gardez cette page ouverte",
     "Up to 9 reference images": "Jusqu'à 9 images de référence",
-    "First image defines the subject": "La première image définit le sujet"
+    "First image defines the subject": "La première image définit le sujet",
+    "Add credits in Wallet and come back to continue.": "Ajoutez des crédits dans le portefeuille, puis revenez pour continuer.",
+    "Choose an amount": "Choisissez un montant",
+    "Opening Stripe…": "Ouverture de Stripe…",
+    "Pay with Stripe": "Payer avec Stripe",
+    "Pay {{price}} with Stripe": "Payer {{price}} avec Stripe",
+    "Payment is processed by Stripe.": "Le paiement est traité par Stripe.",
+    "Top up in Wallet": "Recharger dans le portefeuille",
+    "Top up successful": "Recharge réussie",
+    "Top up to continue this generation": "Rechargez pour poursuivre cette génération",
+    "Top up": "Recharger",
+    "Your credits are ready — generation resumes automatically.": "Vos crédits sont disponibles — la génération reprend automatiquement."
   }
 }
