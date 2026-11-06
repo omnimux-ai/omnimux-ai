@@ -83,6 +83,8 @@ export function ToolForm(props: {
         wrong_kind_photo: errors.wrongKindPhoto,
         wrong_kind_video: errors.wrongKindVideo,
         unavailable: errors.unavailable,
+        service_unavailable: errors.serviceUnavailable,
+        upstream_failed: errors.upstreamFailed,
         quota_exceeded: user ? errors.quotaUser : errors.quotaAnon,
         busy: errors.busy,
         rate_limited: errors.rateLimited,
@@ -115,10 +117,17 @@ export function ToolForm(props: {
   const unavailable = resolver.config?.enabled === false
   const busy = resolver.phase !== 'idle'
 
+  // A closed tool is the button's own state, so the label carries it and the
+  // tooltip names the cause. A used-up quota belongs to the visitor, so the
+  // button keeps its verb and the reason stays on the tooltip and the click.
   let blockedReason = ''
-  if (unavailable) blockedReason = copy.unavailable
-  else if (exhausted)
+  let blockedLabel: string | null = null
+  if (unavailable) {
+    blockedLabel = copy.unavailable
+    blockedReason = copy.errors.serviceUnavailable
+  } else if (exhausted) {
     blockedReason = loggedIn ? copy.errors.quotaUser : copy.errors.quotaAnon
+  }
 
   const quotaTemplate = loggedIn ? copy.quotaUser : copy.quotaAnon
   const [quotaLead] = quotaTemplate.split('{remaining}')
@@ -134,7 +143,11 @@ export function ToolForm(props: {
         autoComplete='off'
         onSubmit={(event) => {
           event.preventDefault()
-          if (busy || blockedReason) return
+          if (busy) return
+          if (blockedReason) {
+            toast.error(blockedReason)
+            return
+          }
           const url = value.trim()
           if (!url) {
             onFailure('invalid_link')
@@ -184,12 +197,12 @@ export function ToolForm(props: {
           <button
             type='submit'
             className='btn btn-light tool-go'
-            disabled={busy || Boolean(blockedReason)}
+            aria-disabled={busy || Boolean(blockedReason) || undefined}
             title={blockedReason || undefined}
             aria-describedby={blockedReason ? 'tool-go-reason' : undefined}
           >
             {busy ? <span className='tool-spin' aria-hidden='true' /> : null}
-            {resolver.phase === 'idle' ? copy.parse : null}
+            {resolver.phase === 'idle' ? (blockedLabel ?? copy.parse) : null}
             {resolver.phase === 'verifying' ? copy.verifying : null}
             {resolver.phase === 'parsing' ? copy.parsing : null}
           </button>

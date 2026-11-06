@@ -108,6 +108,10 @@ For commercial licensing, please contact support@quantumnous.com
 .cn-toolsmenu-group {font-size:11px;letter-spacing:.04em;color:var(--fg-3);padding:8px 10px 6px}
 .cn-toolsmenu .cn-item {color:var(--fg)}
 .cn-toolsmenu .cn-item svg {color:var(--violet-hi)}
+/* fork: nav 资源菜单（灵感社区 / 开发文档） */
+.cn-resourcesmenu {width:220px}
+.cn-resourcesmenu .cn-item {color:var(--fg)}
+.cn-resourcesmenu .cn-item svg {color:var(--violet-hi)}
 .omc .sheet-group {display:flex;flex-direction:column;gap:2px;margin:4px 0}
 .omc .sheet-group-h {font-size:11px;letter-spacing:.04em;color:var(--fg-3);padding:6px 14px}
 .omc .sheet-group a {padding-left:26px}
@@ -207,12 +211,12 @@ For commercial licensing, please contact support@quantumnous.com
 .omc .gh-star svg {width:17px;height:17px;display:inline-flex;flex:none}
 .omc .gh-star .ext {width:13px;height:13px;opacity:.55;margin-left:2px}
 .omc .gh-star:focus-visible {outline:2px solid #7cc4ff;outline-offset:3px}
-.omc .split-menu {position:absolute;top:calc(100% + 10px);right:0;min-width:100%;background:#fff;color:#0f1115;border-radius:12px;padding:4px;box-shadow:0 0 1px rgba(0,0,0,.2),0 0 4px rgba(0,0,0,.02),0 12px 32px rgba(0,0,0,.14);text-align:left;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:40}
+.omc .split-menu {position:absolute;top:calc(100% + 8px);left:0;min-width:100%;background:var(--panel-2);color:var(--fg);border:1px solid var(--hair-2);border-radius:16px;padding:6px;box-shadow:var(--shadow-md);text-align:left;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:40}
+.omc .split-dl.up .split-menu {top:auto;bottom:calc(100% + 8px);transform:translateY(4px)}
 .omc .split-dl.open .split-menu {opacity:1;transform:translateY(0);pointer-events:auto}
-.omc .split-item {display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:8px;cursor:pointer;text-decoration:none;color:inherit;text-align:left;white-space:nowrap}
-.omc .split-item:hover {background:#f3f4f6}
-.omc .split-item .t {font-size:15px;font-weight:400}
-.omc .split-item .n {font-size:13px;color:#71717a}
+.omc .split-item {display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;cursor:pointer;text-decoration:none;color:var(--fg-2);text-align:left;white-space:nowrap;transition:background .15s,color .15s}
+.omc .split-item:hover {background:var(--wash);color:var(--fg)}
+.omc .split-item .t {font-size:14px;font-weight:400}
 .omc .reel {display:flex;justify-content:center;align-items:flex-start;gap:clamp(8px,1.1vw,16px);margin-top:clamp(48px,6vw,72px);padding-bottom:24px;perspective:1400px}
 .omc .reel-card {--w:clamp(118px,11.2vw,172px);position:relative;flex:none;width:var(--w);aspect-ratio:9/16;border-radius:18px;overflow:hidden;background:var(--panel-2);border:1px solid var(--hair-2);box-shadow:0 30px 60px -28px rgba(0,0,0,.9);transform:translateY(var(--y,0)) rotate(var(--r,0deg));animation:fly 1s cubic-bezier(.2,.75,.2,1) both;animation-delay:calc(var(--i) * 80ms + 150ms)}
 .omc .reel-card video,
@@ -309,11 +313,9 @@ For commercial licensing, please contact support@quantumnous.com
 .omc .sched .btn {width:100%;height:34px;margin-top:8px;font-size:13.5px}
 .omc .plat {display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--fg-2)}
 .omc .plat::before {content:"";width:7px;height:7px;border-radius:50%;background:var(--pc,#fff)}
-.omc .p-dy {--pc:#25F4EE}
-.omc .p-xhs {--pc:#FF2442}
-.omc .p-sph {--pc:#FA9D3B}
-.omc .p-ks {--pc:#FF4906}
-.omc .p-bili {--pc:#FB7299}
+.omc .p-tiktok {--pc:#25F4EE}
+.omc .p-instagram {--pc:#E1306C}
+.omc .p-youtube {--pc:#FF0033}
 .omc .replay {margin-left:8px;flex:none;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--hair-2);background:rgba(20,20,22,.85);font-size:12.5px;color:var(--fg-2)}
 .omc .replay:hover {color:var(--fg)}
 .omc .replay .ico {width:14px;height:14px}

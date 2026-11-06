@@ -126,6 +126,8 @@ export type ToolPageCopy = {
     wrongKindVideo: string
     toVideo: string
     unavailable: string
+    serviceUnavailable: string
+    upstreamFailed: string
     quotaAnon: string
     quotaUser: string
     busy: string
@@ -151,9 +153,9 @@ export interface LandingCopy {
     home: string
     models: string
     tools: string
-    forAI: string
     ext: string
     pricing: string
+    resources: string
     download: string
     login: string
     menuOpen: string
@@ -165,6 +167,14 @@ export interface LandingCopy {
       group: string
       video: string
       photo: string
+      agentGroup: string
+      cli: string
+      skills: string
+    }
+    resourcesMenu: {
+      aria: string
+      inspiration: string
+      docs: string
     }
     account: {
       aria: string
@@ -204,11 +214,8 @@ export interface LandingCopy {
     dlMenuAria: string
     ghStar: string
     dlMacArm: string
-    dlMacArmNote: string
     dlMacIntel: string
-    dlMacIntelNote: string
     dlWinX64: string
-    dlWinX64Note: string
     skillsLabel: string
     skillsAria: string
     skills: readonly { icon: IconName; label: string; fill: string }[]

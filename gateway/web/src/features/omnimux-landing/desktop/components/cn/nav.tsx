@@ -24,6 +24,8 @@ import { useIsSidebarModuleVisible } from '@/hooks/use-sidebar-config'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { DOCS_URL } from '../../../lib/landing-urls'
+import { AGENT_PATHS, type AgentLocale } from '../../agent/content'
 import { LANDING_LANGS, useLanding } from '../../i18n'
 import { TOOL_PATHS } from '../../tools/content'
 import { CnAccountMenu } from './account-menu'
@@ -37,9 +39,9 @@ export type CnNavLinkKey =
   | 'home'
   | 'models'
   | 'tools'
-  | 'forAI'
   | 'ext'
   | 'pricing'
+  | 'resources'
 
 type NavLinkMeta = {
   href: string
@@ -52,9 +54,10 @@ const LINK_META: readonly NavLinkMeta[] = [
   { href: '#top', key: 'home' },
   { href: '#models', key: 'models' },
   { href: '#tools', key: 'tools' },
-  { href: '#surfaces', key: 'forAI' },
   { href: '#ext', key: 'ext', icon: 'puzzle' },
   { href: '/pricing', key: 'pricing', route: true },
+  // Rendered as a menu, not an anchor: `href` only satisfies the shared shape.
+  { href: '#resources', key: 'resources' },
 ]
 
 /**
@@ -81,25 +84,63 @@ export function CnNav(props: { anchorBase?: string; current?: CnNavLinkKey }) {
   const nav = copy.nav
   const linkLabel = (key: CnNavLinkKey) => nav[key]
   const toolsMenu = nav.toolsMenu
+  // The TikTok tool pages only publish en and zh-CN; the Agent pages carry all
+  // six landing languages, so each menu group resolves its own locale.
   const toolLocale: 'en' | 'zh-CN' =
     lang === 'zh-CN' || lang === 'zh-TW' ? 'zh-CN' : 'en'
-  const toolLinks = [
+  const agentLocale: AgentLocale = lang
+  const toolGroups = [
     {
-      href: TOOL_PATHS[toolLocale].video,
-      label: toolsMenu.video,
-      icon: 'video' as IconName,
+      title: toolsMenu.group,
+      links: [
+        {
+          href: TOOL_PATHS[toolLocale].video,
+          label: toolsMenu.video,
+          icon: 'video' as IconName,
+        },
+        {
+          href: TOOL_PATHS[toolLocale].photo,
+          label: toolsMenu.photo,
+          icon: 'img' as IconName,
+        },
+      ],
     },
     {
-      href: TOOL_PATHS[toolLocale].photo,
-      label: toolsMenu.photo,
-      icon: 'img' as IconName,
+      title: toolsMenu.agentGroup,
+      links: [
+        {
+          href: AGENT_PATHS[agentLocale].cli,
+          label: toolsMenu.cli,
+          icon: 'term' as IconName,
+        },
+        {
+          href: AGENT_PATHS[agentLocale].skills,
+          label: toolsMenu.skills,
+          icon: 'spark' as IconName,
+        },
+      ],
+    },
+  ]
+  const resourcesMenu = nav.resourcesMenu
+  // The two resource destinations used to sit only in the footer. The header
+  // now carries them so they are reachable without scrolling to the bottom.
+  const resourceLinks = [
+    {
+      href: '/inspiration',
+      label: resourcesMenu.inspiration,
+      icon: 'bulb' as IconName,
+    },
+    {
+      href: DOCS_URL,
+      label: resourcesMenu.docs,
+      icon: 'book' as IconName,
+      external: true,
     },
   ]
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null)
   useEffect(() => {
     setPortalRoot(document.querySelector<HTMLElement>('.omc'))
   }, [])
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
     onScroll()
@@ -163,21 +204,86 @@ export function CnNav(props: { anchorBase?: string; current?: CnNavLinkKey }) {
                             className='cn-usermenu cn-toolsmenu'
                             aria-label={toolsMenu.aria}
                           >
-                            <div className='cn-toolsmenu-group'>
-                              {toolsMenu.group}
-                            </div>
-                            {toolLinks.map((tool) => (
-                              <MenuPrimitive.Item
-                                key={tool.href}
-                                className='cn-item'
-                                render={
-                                  <Link to={tool.href}>
-                                    <Icon name={tool.icon} />
-                                    {tool.label}
-                                  </Link>
-                                }
-                              />
+                            {toolGroups.map((group) => (
+                              <div key={group.title}>
+                                <div className='cn-toolsmenu-group'>
+                                  {group.title}
+                                </div>
+                                {group.links.map((tool) => (
+                                  <MenuPrimitive.Item
+                                    key={tool.href}
+                                    className='cn-item'
+                                    render={
+                                      <Link to={tool.href}>
+                                        <Icon name={tool.icon} />
+                                        {tool.label}
+                                      </Link>
+                                    }
+                                  />
+                                ))}
+                              </div>
                             ))}
+                          </MenuPrimitive.Popup>
+                        </MenuPrimitive.Positioner>
+                      </MenuPrimitive.Portal>
+                    )}
+                  </MenuPrimitive.Root>
+                )
+              }
+              if (link.key === 'resources') {
+                return (
+                  <MenuPrimitive.Root key={link.key} modal={false}>
+                    <MenuPrimitive.Trigger render={<button type='button' />}>
+                      {linkLabel(link.key)}
+                      <svg
+                        className='ico ico-caret'
+                        viewBox='0 0 24 24'
+                        aria-hidden='true'
+                      >
+                        <path d='m6 9 6 6 6-6' />
+                      </svg>
+                    </MenuPrimitive.Trigger>
+                    {portalRoot && (
+                      <MenuPrimitive.Portal container={portalRoot}>
+                        <MenuPrimitive.Positioner
+                          className='cn-menupos'
+                          align='start'
+                          side='bottom'
+                          sideOffset={10}
+                        >
+                          <MenuPrimitive.Popup
+                            className='cn-usermenu cn-resourcesmenu'
+                            aria-label={resourcesMenu.aria}
+                          >
+                            {resourceLinks.map((item) =>
+                              item.external ? (
+                                <MenuPrimitive.Item
+                                  key={item.href}
+                                  className='cn-item'
+                                  render={
+                                    <a
+                                      href={item.href}
+                                      target='_blank'
+                                      rel='noopener noreferrer'
+                                    >
+                                      <Icon name={item.icon} />
+                                      {item.label}
+                                    </a>
+                                  }
+                                />
+                              ) : (
+                                <MenuPrimitive.Item
+                                  key={item.href}
+                                  className='cn-item'
+                                  render={
+                                    <Link to={item.href}>
+                                      <Icon name={item.icon} />
+                                      {item.label}
+                                    </Link>
+                                  }
+                                />
+                              )
+                            )}
                           </MenuPrimitive.Popup>
                         </MenuPrimitive.Positioner>
                       </MenuPrimitive.Portal>
@@ -231,6 +337,34 @@ export function CnNav(props: { anchorBase?: string; current?: CnNavLinkKey }) {
       </header>
       <div className={`sheet${sheetOpen ? ' open' : ''}`} id='cn-sheet'>
         {LINK_META.map((link) => {
+          if (link.key === 'resources') {
+            return (
+              <div className='sheet-group' key={link.key}>
+                <span className='sheet-group-h'>{linkLabel(link.key)}</span>
+                {resourceLinks.map((item) =>
+                  item.external ? (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      onClick={() => setSheetOpen(false)}
+                    >
+                      {item.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={item.href}
+                      to={item.href}
+                      onClick={() => setSheetOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  )
+                )}
+              </div>
+            )
+          }
           if (link.key !== 'tools') {
             return (
               <a
@@ -243,16 +377,20 @@ export function CnNav(props: { anchorBase?: string; current?: CnNavLinkKey }) {
             )
           }
           return (
-            <div className='sheet-group' key={link.key}>
-              <span className='sheet-group-h'>{toolsMenu.group}</span>
-              {toolLinks.map((tool) => (
-                <Link
-                  key={tool.href}
-                  to={tool.href}
-                  onClick={() => setSheetOpen(false)}
-                >
-                  {tool.label}
-                </Link>
+            <div key={link.key}>
+              {toolGroups.map((group) => (
+                <div className='sheet-group' key={group.title}>
+                  <span className='sheet-group-h'>{group.title}</span>
+                  {group.links.map((tool) => (
+                    <Link
+                      key={tool.href}
+                      to={tool.href}
+                      onClick={() => setSheetOpen(false)}
+                    >
+                      {tool.label}
+                    </Link>
+                  ))}
+                </div>
               ))}
             </div>
           )

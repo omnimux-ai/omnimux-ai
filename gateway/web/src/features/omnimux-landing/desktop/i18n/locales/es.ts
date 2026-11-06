@@ -30,9 +30,9 @@ export const es: LandingCopy = {
     home: 'Inicio',
     models: 'Modelos',
     tools: 'Herramientas',
-    forAI: 'For AI',
     ext: 'Extensión',
     pricing: 'Precios',
+    resources: 'Recursos',
     download: 'Descargar',
     login: 'Iniciar sesión',
     menuOpen: 'Abrir menú',
@@ -44,6 +44,14 @@ export const es: LandingCopy = {
       group: 'Creativo',
       video: 'Descargar vídeo de TikTok',
       photo: 'Descargar fotos de TikTok',
+      agentGroup: 'Agente',
+      cli: 'CLI',
+      skills: 'Skills',
+    },
+    resourcesMenu: {
+      aria: 'Menú de recursos',
+      inspiration: 'Comunidad de inspiración',
+      docs: 'Documentación para desarrolladores',
     },
     account: {
       aria: 'Menú de cuenta',
@@ -70,10 +78,11 @@ export const es: LandingCopy = {
   hero: {
     titleA: 'Descubre, recrea y escala',
     titleB: 'vídeos virales de venta',
-    subPre: 'OmniMux Desktop ayuda a los vendedores de ',
-    subHighlight: 'TikTok Shop, Instagram y YouTube',
+    subPre:
+      'Un sistema de comercio de contenidos que lleva los puntos fuertes de tu producto a cada vídeo. Usa ',
+    subHighlight: 'los Agents que ya conoces',
     subPost:
-      ' a crear, recrear y publicar vídeos de venta con IA para aumentar la conversión.',
+      ' para crear anuncios, vídeos de venta y reseñas en un solo lugar.',
     tabsAria: 'Modo de creación',
     tabs: { agent: 'Agent', video: 'Vídeo', image: 'Imagen' },
     inputLabel: 'Describe lo que quieres crear',
@@ -84,18 +93,15 @@ export const es: LandingCopy = {
     dlMenuAria: 'Elegir versión de descarga',
     ghStar: 'Danos una estrella en GitHub',
     dlMacArm: 'macOS (Apple Silicon)',
-    dlMacArmNote: 'Requiere macOS 13 o superior · M1/M2/M3/M4',
     dlMacIntel: 'macOS (Intel)',
-    dlMacIntelNote: 'Requiere macOS 13 o superior · Mac anterior a 2020',
     dlWinX64: 'Windows (64 bits)',
-    dlWinX64Note: 'Requiere Windows 10 o superior',
     skillsLabel: 'Skills',
     skillsAria: 'Skills',
     skills: [
       {
         icon: 'scan',
         label: 'Analizar vídeo/post',
-        fill: 'Analiza por qué este vídeo se hizo viral: gancho inicial, argumentos de venta y guía de compra https://v.douyin.com/',
+        fill: 'Analiza por qué este vídeo se hizo viral: gancho inicial, argumentos de venta y guía de compra https://www.tiktok.com/',
       },
       {
         icon: 'video',
@@ -121,7 +127,7 @@ export const es: LandingCopy = {
     modes: {
       agent: {
         prompts: [
-          'Analiza por qué este vídeo se hizo viral https://v.douyin.com/iR7xKq2/',
+          'Analiza por qué este vídeo se hizo viral https://www.tiktok.com/@pet.diary/video/73421',
           'Usa este vídeo viral para crear 3 para @Sérum, listos para publicar, 15 s',
           'Analiza la estrategia de @SkinDiary de los últimos 30 días',
         ],
@@ -175,7 +181,7 @@ export const es: LandingCopy = {
     msgPre: 'Usa este vídeo viral para crear un vídeo de 15 s para',
     msgProducts: ['@ComidaMascota', '@Overol', '@Auriculares'],
     msgPost: 'y publícalos, 15 s cada uno.',
-    linkCard: 'v.douyin.com/iR7xKq2/ · gato jugando + unboxing de pienso',
+    linkCard: 'tiktok.com/@pet.diary/video/73421 · gato jugando + unboxing de pienso',
     doneBreakdown: 'Analizado por qué vende el vídeo de referencia',
     kv: [
       { k: 'Gancho', v: 'Antes/después en los primeros 2 s' },
@@ -201,7 +207,7 @@ export const es: LandingCopy = {
       'Gancho · primer plano',
     ],
     schedTitle: 'Publicaciones programadas',
-    schedOk: 'Pre-chequeo superado',
+    schedOk: 'Programado',
     schedPlatform: 'TikTok',
     schedTimes: ['Mar 19:00', 'Mié 12:30', 'Jue 19:00'],
     schedAll: 'Programar todo',
@@ -292,8 +298,8 @@ export const es: LandingCopy = {
       tabsAria: 'Qué analizar',
       tabs: {
         video: 'Vídeo',
-        account: 'Cuenta de la competencia',
-        category: 'Tendencias por categoría',
+        account: 'Cuenta de la competencia · Ejemplo',
+        category: 'Tendencias por categoría · Ejemplo',
       },
       statsViews: '15 M+ visualizaciones',
       statsLikes: '320 mil+ likes',
@@ -341,7 +347,7 @@ export const es: LandingCopy = {
       ],
       accountCta: 'Usa esta estrategia para crear 3 para @Sérum',
       catTitle: 'Belleza y cuidado personal',
-      catMeta: 'Últimos 7 días · top 200',
+      catMeta: 'Últimos 7 días · top 200 · Datos de muestra',
       bars: [
         { label: 'Antes/después', value: '38%' },
         { label: 'Unboxing y prueba', value: '24%' },
@@ -425,10 +431,6 @@ export const es: LandingCopy = {
         {
           title: 'Envía a todas las plataformas de una vez',
           desc: 'TikTok, Instagram, Facebook y YouTube: elige cuentas, envía una vez y sigue el estado de cada cuenta por separado.',
-        },
-        {
-          title: 'Chequeos automáticos antes de publicar',
-          desc: 'Comprueba portada, número de imágenes, declaración de originalidad y marcado de contenido IA según las reglas de cada plataforma; las cuentas y el contenido deben seguir las políticas de cada plataforma.',
         },
         {
           title: 'Todas las cuentas en un solo lugar',
@@ -742,7 +744,7 @@ export const es: LandingCopy = {
       },
       {
         q: '¿Cómo hago un vídeo de venta con IA?',
-        a: 'Pega un enlace de producto o elige una referencia viral, genera un vídeo original o recreado en minutos y publícalo en las plataformas que hayas conectado. Sin grabar ni editar.',
+        a: 'Pega un enlace de producto o elige una referencia viral, genera un vídeo original o recreado y publícalo en las plataformas que hayas conectado. Sin grabar ni editar.',
       },
       {
         q: '¿Los vídeos generados se pueden publicar directamente?',
@@ -750,7 +752,7 @@ export const es: LandingCopy = {
       },
       {
         q: '¿Los vídeos hechos con IA pueden hacer que me baneen la cuenta?',
-        a: 'OmniMux no puede garantizar protección contra baneos: la seguridad de la cuenta depende de tu contenido y tu comportamiento. Antes de publicar, la app comprueba parámetros como portada, declaración de originalidad y marcado de contenido IA según las reglas de cada plataforma; respeta las políticas de cada plataforma.',
+        a: 'OmniMux no puede garantizar protección contra baneos: la seguridad de la cuenta depende de tu contenido y tu comportamiento. Al publicar puedes añadir una declaración de contenido generado por IA al vídeo; respeta las políticas de cada plataforma.',
       },
       {
         q: '¿Puede convertir imágenes de producto en vídeo?',
@@ -912,6 +914,8 @@ export const es: LandingCopy = {
       toVideo: 'Ir al descargador de vídeos',
       unavailable:
         'Esta publicación es privada, se eliminó o no está disponible',
+      serviceUnavailable: 'El análisis aún no está abierto en este sitio',
+      upstreamFailed: 'TikTok no respondió, inténtalo de nuevo en un momento',
       quotaAnon:
         'Se agotaron los análisis gratis de hoy — inicia sesión para continuar',
       quotaUser: 'Se agotaron los análisis de hoy — vuelve mañana',

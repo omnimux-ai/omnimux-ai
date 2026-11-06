@@ -2,7 +2,7 @@
 // description leads with the desktop workflow. The character studio keeps its
 // own description below for /ai-influencer-studio and the About page.
 export const HOMEPAGE_DESCRIPTION =
-  'OmniMux Desktop breaks down a reference video, recreates it with your product, and publishes on a schedule. Generate with your own character, product image or reference clip.'
+  'Your local AI content commerce team. Break down viral product videos and recreate them with your own product and AI character. No subscription, pay as you go.'
 
 export const HOMEPAGE_STEPS = [
   'Break a reference video into its hook, selling points and buying guide.',

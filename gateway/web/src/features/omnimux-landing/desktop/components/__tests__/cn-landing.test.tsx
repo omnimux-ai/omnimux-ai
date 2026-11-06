@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -99,15 +99,69 @@ describe('desktop CN hero split download', () => {
     expect(caret).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('labels each menu item with the variant name and requirement note', async () => {
+  it('renders each menu item as a compact single-line label using Apple 芯片 in zh-CN', async () => {
     await openMenu()
     const items = screen.getAllByRole('menuitem')
-    expect(items[0].textContent).toContain(zhCN.hero.dlMacArm)
-    expect(items[0].textContent).toContain(zhCN.hero.dlMacArmNote)
-    expect(items[1].textContent).toContain(zhCN.hero.dlMacIntel)
-    expect(items[1].textContent).toContain(zhCN.hero.dlMacIntelNote)
-    expect(items[2].textContent).toContain(zhCN.hero.dlWinX64)
-    expect(items[2].textContent).toContain(zhCN.hero.dlWinX64Note)
+    expect(zhCN.hero.dlMacArm).toBe('macOS（Apple 芯片）')
+    expect(items[0].textContent).toBe(zhCN.hero.dlMacArm)
+    expect(items[1].textContent).toBe(zhCN.hero.dlMacIntel)
+    expect(items[2].textContent).toBe(zhCN.hero.dlWinX64)
+  })
+
+  it('flips the menu upward when space below the button is smaller than the menu height', async () => {
+    const originalInnerHeight = window.innerHeight
+    Object.defineProperty(window, 'innerHeight', {
+      value: 500,
+      configurable: true,
+      writable: true,
+    })
+    try {
+      const user = userEvent.setup()
+      render(<CnHero />)
+      const wrap = document.querySelector<HTMLDivElement>('.split-dl')
+      expect(wrap).toBeTruthy()
+      if (!wrap) return
+      wrap.getBoundingClientRect = () =>
+        ({
+          top: 420,
+          bottom: 464,
+          left: 100,
+          right: 260,
+          width: 160,
+          height: 44,
+          x: 100,
+          y: 420,
+          toJSON: () => ({}),
+        }) as DOMRect
+
+      const caret = screen.getByRole('button', { name: zhCN.hero.dlMenuAria })
+      await user.click(caret)
+      expect(wrap.classList.contains('up')).toBe(true)
+
+      // When scrolled up so there is plenty of space below, it flips back down.
+      wrap.getBoundingClientRect = () =>
+        ({
+          top: 120,
+          bottom: 164,
+          left: 100,
+          right: 260,
+          width: 160,
+          height: 44,
+          x: 100,
+          y: 120,
+          toJSON: () => ({}),
+        }) as DOMRect
+      act(() => {
+        window.dispatchEvent(new Event('scroll'))
+      })
+      expect(wrap.classList.contains('up')).toBe(false)
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        value: originalInnerHeight,
+        configurable: true,
+        writable: true,
+      })
+    }
   })
 
   it('closes the menu on Escape', async () => {

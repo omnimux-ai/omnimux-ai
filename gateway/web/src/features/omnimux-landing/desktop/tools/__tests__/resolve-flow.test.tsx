@@ -118,7 +118,9 @@ describe('TikTok tool resolve flow', () => {
     turnstile.verify = undefined
   })
   afterEach(() => {
-    vi.clearAllMocks()
+    // reset, not clear: a leftover implementation would make the next case
+    // depend on this one's server answer.
+    vi.resetAllMocks()
   })
 
   it('renders the video result with an attachment download link when the pass is valid', async () => {
@@ -191,9 +193,42 @@ describe('TikTok tool resolve flow', () => {
     renderForm()
 
     const parse = await screen.findByRole('button', { name: /parse/i })
-    await waitFor(() => expect(parse).toBeDisabled())
+    await waitFor(() => expect(parse).toHaveAttribute('aria-disabled', 'true'))
     expect(parse.getAttribute('title')).toBeTruthy()
     expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('keeps a closed tool focusable and explains it on click', async () => {
+    api.get.mockResolvedValue(config({ enabled: false }))
+    renderForm()
+
+    const parse = await screen.findByRole('button', {
+      name: /temporarily unavailable/i,
+    })
+    expect(parse).toHaveAttribute('aria-disabled', 'true')
+    expect(parse).not.toBeDisabled()
+    expect(parse.getAttribute('title')).toBeTruthy()
+
+    fireEvent.click(parse)
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1))
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('closes the tool after the server reports it is switched off', async () => {
+    api.get.mockResolvedValue(config({ pass_valid: true }))
+    api.post.mockImplementation(() => rejectWith(503, 'unavailable_service'))
+    renderForm()
+    await screen.findByText('5/5')
+
+    submit(VIDEO_URL)
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1))
+    expect(toastError.mock.calls[0][0]).toMatch(/not open/i)
+    const parse = screen.getByRole('button', {
+      name: /temporarily unavailable/i,
+    })
+    expect(parse).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('fails closed with turnstile_unavailable when no site key is configured', async () => {
@@ -208,5 +243,17 @@ describe('TikTok tool resolve flow', () => {
     await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1))
     expect(screen.queryByTestId('turnstile')).not.toBeInTheDocument()
     expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('reports a plain failure instead of blaming verification when config never loads', async () => {
+    api.get.mockRejectedValue(new Error('offline'))
+    renderForm()
+    await screen.findByRole('button', { name: /parse/i })
+
+    submit(VIDEO_URL)
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1))
+    expect(toastError.mock.calls[0][0]).toMatch(/couldn't parse/i)
+    expect(screen.queryByTestId('turnstile')).not.toBeInTheDocument()
   })
 })

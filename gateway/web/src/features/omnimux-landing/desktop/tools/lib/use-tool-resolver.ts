@@ -35,6 +35,10 @@ export type ToolFailure =
   | 'wrong_kind_photo'
   | 'wrong_kind_video'
   | 'unavailable'
+  /** The tool is switched off on this deployment (`enabled:false`). */
+  | 'service_unavailable'
+  /** The upstream post fetch failed; retrying may work. */
+  | 'upstream_failed'
   | 'quota_exceeded'
   | 'busy'
   | 'rate_limited'
@@ -47,6 +51,8 @@ const KNOWN_FAILURES: readonly ToolFailure[] = [
   'wrong_kind_photo',
   'wrong_kind_video',
   'unavailable',
+  'service_unavailable',
+  'upstream_failed',
   'quota_exceeded',
   'busy',
   'rate_limited',
@@ -54,8 +60,15 @@ const KNOWN_FAILURES: readonly ToolFailure[] = [
   'turnstile_unavailable',
 ]
 
+/** Server codes whose spelling differs from the failure they mean. */
+const SERVER_CODE_ALIASES: Record<string, ToolFailure> = {
+  unavailable_service: 'service_unavailable',
+}
+
 export function toolFailureOf(error: unknown): ToolFailure {
   if (!(error instanceof ToolRequestError)) return 'generic'
+  const alias = SERVER_CODE_ALIASES[error.code]
+  if (alias) return alias
   const known = KNOWN_FAILURES.find((code) => code === error.code)
   if (known) return known
   if (error.status === 429) return 'rate_limited'
@@ -112,12 +125,27 @@ export function useToolResolver(options: {
         current ? { used: current.limit, limit: current.limit } : current
       )
     }
+    // The server says the tool is off: reflect it in the config the page
+    // already renders from, so the button stops inviting a retry.
+    if (failure === 'service_unavailable') {
+      setConfig((current) =>
+        current ? { ...current, enabled: false } : current
+      )
+    }
     onFailure.current(failure)
   }, [])
 
   const openChallenge = useCallback(
     (next: Pending) => {
-      if (!config?.turnstile_site_key) {
+      // No config yet (the mount request failed or is still in flight): the
+      // pass state is unknown, so report a plain failure instead of blaming
+      // the verification service.
+      if (!config) {
+        pending.current = null
+        fail('generic')
+        return
+      }
+      if (!config.turnstile_site_key) {
         pending.current = null
         fail('turnstile_unavailable')
         return
@@ -127,7 +155,7 @@ export function useToolResolver(options: {
       setChallengeOpen(true)
       setChallenge((value) => value + 1)
     },
-    [config?.turnstile_site_key, fail]
+    [config, fail]
   )
 
   const runResolve = useCallback(

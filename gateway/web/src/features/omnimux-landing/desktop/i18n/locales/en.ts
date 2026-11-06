@@ -20,7 +20,7 @@ import type { LandingCopy } from '../types'
 
 export const en: LandingCopy = {
   meta: {
-    title: 'OmniMux Desktop — Find, Recreate & Scale Viral Shoppable Videos',
+    title: 'OmniMux — Your Local AI Content Commerce Team',
   },
   skip: 'Skip to content',
 
@@ -29,9 +29,9 @@ export const en: LandingCopy = {
     home: 'Home',
     models: 'Models',
     tools: 'Tools',
-    forAI: 'For AI',
     ext: 'Extension',
     pricing: 'Pricing',
+    resources: 'Resources',
     download: 'Download',
     login: 'Log in',
     menuOpen: 'Open menu',
@@ -43,6 +43,14 @@ export const en: LandingCopy = {
       group: 'Creative',
       video: 'TikTok video download',
       photo: 'TikTok photo download',
+      agentGroup: 'Agent',
+      cli: 'CLI',
+      skills: 'Skills',
+    },
+    resourcesMenu: {
+      aria: 'Resources menu',
+      inspiration: 'Inspiration Community',
+      docs: 'Developer Docs',
     },
     account: {
       aria: 'Account menu',
@@ -69,10 +77,11 @@ export const en: LandingCopy = {
   hero: {
     titleA: 'Find, recreate & scale',
     titleB: 'viral shoppable videos',
-    subPre: 'OmniMux Desktop helps ',
-    subHighlight: 'TikTok Shop, Instagram & YouTube sellers',
+    subPre:
+      "One content commerce system that carries your product's selling points through every video. Use ",
+    subHighlight: 'the Agents you already know',
     subPost:
-      ' create, recreate and publish shoppable videos with AI to lift conversion.',
+      ' to create ads, shoppable videos, and product reviews—all in one place.',
     tabsAria: 'Creation mode',
     tabs: { agent: 'Agent', video: 'Video', image: 'Image' },
     inputLabel: 'Describe what you want to make',
@@ -83,18 +92,15 @@ export const en: LandingCopy = {
     dlMenuAria: 'Choose download version',
     ghStar: 'Star on GitHub',
     dlMacArm: 'macOS (Apple Silicon)',
-    dlMacArmNote: 'Requires macOS 13 or later · M1/M2/M3/M4',
     dlMacIntel: 'macOS (Intel)',
-    dlMacIntelNote: 'Requires macOS 13 or later · pre-2020 Mac',
     dlWinX64: 'Windows (64-bit)',
-    dlWinX64Note: 'Requires Windows 10 or later',
     skillsLabel: 'Skills',
     skillsAria: 'Skills',
     skills: [
       {
         icon: 'scan',
         label: 'Break down video/post',
-        fill: 'Break down why this video went viral — hook, selling points and buying guide https://v.douyin.com/',
+        fill: 'Break down why this video went viral — hook, selling points and buying guide https://www.tiktok.com/',
       },
       {
         icon: 'video',
@@ -120,7 +126,7 @@ export const en: LandingCopy = {
     modes: {
       agent: {
         prompts: [
-          'Break down why this video went viral https://v.douyin.com/iR7xKq2/',
+          'Break down why this video went viral https://www.tiktok.com/@pet.diary/video/73421',
           'Use this viral video to make 3 for @Serum, ready to publish, 15s',
           'Analyze how @SkinDiary played the last 30 days',
         ],
@@ -174,7 +180,7 @@ export const en: LandingCopy = {
     msgPre: 'Recreate this viral video for',
     msgProducts: ['@PetFood', '@Overalls', '@Earbuds'],
     msgPost: '— one 15s video each, ready to publish.',
-    linkCard: 'v.douyin.com/iR7xKq2/ · cat antics + kibble unboxing',
+    linkCard: 'tiktok.com/@pet.diary/video/73421 · cat antics + kibble unboxing',
     doneBreakdown: 'Broke down why the reference video sells',
     kv: [
       { k: 'Hook', v: 'Before/after in the first 2s' },
@@ -199,7 +205,7 @@ export const en: LandingCopy = {
       'Hook · close-up',
     ],
     schedTitle: 'Scheduled posts',
-    schedOk: 'Pre-check passed',
+    schedOk: 'Scheduled',
     schedPlatform: 'TikTok',
     schedTimes: ['Tue 19:00', 'Wed 12:30', 'Thu 19:00'],
     schedAll: 'Schedule all',
@@ -284,8 +290,8 @@ export const en: LandingCopy = {
       tabsAria: 'What to break down',
       tabs: {
         video: 'Video',
-        account: 'Competitor account',
-        category: 'Category trends',
+        account: 'Competitor account · Sample',
+        category: 'Category trends · Sample',
       },
       statsViews: '15M+ views',
       statsLikes: '320K+ likes',
@@ -333,7 +339,7 @@ export const en: LandingCopy = {
       ],
       accountCta: 'Use this playbook to make 3 for @Serum',
       catTitle: 'Beauty & personal care',
-      catMeta: 'Last 7 days · top 200',
+      catMeta: 'Last 7 days · top 200 · Sample data',
       bars: [
         { label: 'Before/after', value: '38%' },
         { label: 'Unboxing & trial', value: '24%' },
@@ -417,10 +423,6 @@ export const en: LandingCopy = {
         {
           title: 'Submit to every platform at once',
           desc: 'TikTok, Instagram, Facebook and YouTube — pick accounts, submit once, and track each account separately.',
-        },
-        {
-          title: 'Automatic pre-publish checks',
-          desc: 'Checks cover image, image count, originality claim and AI-content marking against platform rules; accounts and content still must follow each platform’s policies.',
         },
         {
           title: 'One place for all accounts',
@@ -720,7 +722,7 @@ export const en: LandingCopy = {
       },
       {
         q: 'How do I make a shoppable video with AI?',
-        a: 'Paste a product link or pick a viral reference, generate an original or recreated video in minutes, then publish to the platforms you have connected. No filming or editing needed.',
+        a: 'Paste a product link or pick a viral reference, generate an original or recreated video, then publish to the platforms you have connected. No filming or editing needed.',
       },
       {
         q: 'Can generated videos be published directly?',
@@ -728,7 +730,7 @@ export const en: LandingCopy = {
       },
       {
         q: 'Will AI-made videos get my account banned?',
-        a: 'OmniMux cannot guarantee protection from bans — account safety depends on your content and account behavior. Before publishing, the app checks parameters like the cover, originality claim and AI-content marking against platform rules; please follow each platform’s policies.',
+        a: 'OmniMux cannot guarantee protection from bans — account safety depends on your content and account behavior. When publishing you can add an AI-generated-content disclosure to your video; please follow each platform’s policies.',
       },
       {
         q: 'Can it turn product images into video?',
@@ -879,6 +881,8 @@ export const en: LandingCopy = {
       wrongKindVideo: 'This is a video link',
       toVideo: 'Go to Video Downloader',
       unavailable: 'This post is private, removed or unavailable',
+      serviceUnavailable: 'Parsing is not open on this site yet',
+      upstreamFailed: 'TikTok did not answer, try again shortly',
       quotaAnon: "Today's free parses are used up — sign in to continue",
       quotaUser: "Today's parses are used up — come back tomorrow",
       busy: "Today's free capacity is full — sign in to continue",

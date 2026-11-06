@@ -27,9 +27,9 @@ export const ja: LandingCopy = {
     home: 'ホーム',
     models: 'モデル',
     tools: 'ツール',
-    forAI: 'For AI',
     ext: '拡張機能',
     pricing: '料金',
+    resources: 'リソース',
     download: 'ダウンロード',
     login: 'ログイン',
     menuOpen: 'メニューを開く',
@@ -41,6 +41,14 @@ export const ja: LandingCopy = {
       group: 'クリエイティブ',
       video: 'TikTok 動画ダウンロード',
       photo: 'TikTok 画像ダウンロード',
+      agentGroup: 'エージェント',
+      cli: 'CLI',
+      skills: 'Skills',
+    },
+    resourcesMenu: {
+      aria: 'リソースメニュー',
+      inspiration: 'インスピレーションコミュニティ',
+      docs: '開発者ドキュメント',
     },
     account: {
       aria: 'アカウントメニュー',
@@ -67,10 +75,9 @@ export const ja: LandingCopy = {
   hero: {
     titleA: '発見・再現・拡散する',
     titleB: 'ECバズ動画',
-    subPre: 'OmniMux デスクトップは',
-    subHighlight: 'TikTok Shop・Instagram・YouTube の出品者',
-    subPost:
-      'が AI で販売動画を制作・再現・投稿し、コンバージョンを高めるのを支援します。',
+    subPre: '商品の魅力をすべての動画に貫く、コンテンツECシステム。',
+    subHighlight: '使い慣れたAgent',
+    subPost: 'で、広告・EC・口コミ動画を一気通貫で制作。',
     tabsAria: '制作モード',
     tabs: { agent: 'Agent', video: '動画', image: '画像' },
     inputLabel: '作りたい内容を入力',
@@ -81,18 +88,15 @@ export const ja: LandingCopy = {
     dlMenuAria: 'ダウンロード版を選択',
     ghStar: 'GitHub で Star を付ける',
     dlMacArm: 'macOS（Apple シリコン）',
-    dlMacArmNote: 'macOS 13 以降が必要 · M1/M2/M3/M4',
     dlMacIntel: 'macOS（Intel）',
-    dlMacIntelNote: 'macOS 13 以降が必要 · 2020 年以前の Mac',
     dlWinX64: 'Windows（64 ビット）',
-    dlWinX64Note: 'Windows 10 以降が必要',
     skillsLabel: 'スキル',
     skillsAria: 'スキル',
     skills: [
       {
         icon: 'scan',
         label: '動画・画像投稿を分析',
-        fill: 'この動画がなぜ売れたのかを分析し、冒頭のフック・訴求ポイント・購入導線を整理 https://v.douyin.com/',
+        fill: 'この動画がなぜ売れたのかを分析し、冒頭のフック・訴求ポイント・購入導線を整理 https://www.tiktok.com/',
       },
       {
         icon: 'video',
@@ -118,7 +122,7 @@ export const ja: LandingCopy = {
     modes: {
       agent: {
         prompts: [
-          'この動画がなぜ売れたのかを分析 https://v.douyin.com/iR7xKq2/',
+          'この動画がなぜ売れたのかを分析 https://www.tiktok.com/@pet.diary/video/73421',
           'このバズ動画を @美容液 で 3 本作り、そのまま投稿できる形で 15 秒',
           '@小鹿のスキンケア日記 の直近 30 日の戦略を分析',
         ],
@@ -172,7 +176,7 @@ export const ja: LandingCopy = {
     msgPre: 'このバズ動画を使って',
     msgProducts: ['@ペットフード', '@サロペット', '@イヤホン'],
     msgPost: 'に 1 本ずつ作成し、そのまま投稿できる形で 15 秒。',
-    linkCard: 'v.douyin.com/iR7xKq2/ · 猫との日常、キャットフード開封',
+    linkCard: 'tiktok.com/@pet.diary/video/73421 · 猫との日常、キャットフード開封',
     doneBreakdown: '参考動画が売れた理由を分析しました',
     kv: [
       { k: '冒頭', v: '最初の 2 秒でビフォーアフター' },
@@ -197,7 +201,7 @@ export const ja: LandingCopy = {
       '冒頭 · クローズアップ',
     ],
     schedTitle: '予約投稿',
-    schedOk: '事前チェック済み',
+    schedOk: 'スケジュール済み',
     schedPlatform: 'TikTok',
     schedTimes: ['火曜 19:00', '水曜 12:30', '木曜 19:00'],
     schedAll: 'すべて予約',
@@ -281,8 +285,8 @@ export const ja: LandingCopy = {
       tabsAria: '分析対象',
       tabs: {
         video: '動画',
-        account: '競合アカウント',
-        category: 'カテゴリのトレンド',
+        account: '競合アカウント · サンプル',
+        category: 'カテゴリのトレンド · サンプル',
       },
       statsViews: '1500万+ 再生',
       statsLikes: '32万+ いいね',
@@ -330,7 +334,7 @@ export const ja: LandingCopy = {
       ],
       accountCta: 'この戦略で @美容液 の動画を 3 本作る',
       catTitle: 'ビューティー・パーソナルケア',
-      catMeta: '過去 7 日間 · 人気 200 本',
+      catMeta: '過去 7 日間 · 人気 200 本 · サンプルデータ',
       bars: [
         { label: 'ビフォーアフター', value: '38%' },
         { label: '開封・お試し', value: '24%' },
@@ -411,10 +415,6 @@ export const ja: LandingCopy = {
         {
           title: '複数プラットフォームへ一括投稿',
           desc: 'TikTok・Instagram・Facebook・YouTube。アカウントを選んで一度に投稿し、それぞれの状態を個別に追跡。',
-        },
-        {
-          title: '投稿前の自動チェック',
-          desc: 'カバー、画像枚数、オリジナル宣言、AI 生成表記をプラットフォームのルールに沿って確認。アカウントとコンテンツは各プラットフォームの規約に従う必要があります。',
         },
         {
           title: 'アカウントを一元管理',
@@ -713,7 +713,7 @@ export const ja: LandingCopy = {
       },
       {
         q: 'AI で販売動画を作るには？',
-        a: '商品リンクを貼るかバズ動画を選べば、数分でオリジナルまたは再現動画を生成。連携済みプラットフォームに投稿できます。撮影も編集も不要です。',
+        a: '商品リンクを貼るかバズ動画を選べば、オリジナルまたは再現動画を生成して連携済みプラットフォームに投稿できます。撮影も編集も不要です。',
       },
       {
         q: '生成した動画はそのまま投稿できますか？',
@@ -721,7 +721,7 @@ export const ja: LandingCopy = {
       },
       {
         q: 'AI で作った動画でアカウントが凍結されませんか？',
-        a: 'OmniMux は凍結防止を保証しません。アカウントの安全性はコンテンツと運用次第です。投稿前にカバー、オリジナル宣言、AI 生成表記などをプラットフォームのルールに沿ってチェックします。各プラットフォームの規約を遵守してください。',
+        a: 'OmniMux は凍結防止を保証しません。アカウントの安全性はコンテンツと運用次第です。投稿時に動画へ AI 生成コンテンツの表記を付けられます。各プラットフォームの規約を遵守してください。',
       },
       {
         q: '商品画像を動画に変換できますか？',
@@ -881,6 +881,9 @@ export const ja: LandingCopy = {
       wrongKindVideo: 'これは動画のリンクです',
       toVideo: '動画ダウンローダーへ',
       unavailable: 'この投稿は非公開・削除済み、または利用できません',
+      serviceUnavailable: 'このサイトでは解析を公開していません',
+      upstreamFailed:
+        'TikTok が応答しません。しばらくしてから再試行してください',
       quotaAnon: '本日の無料回数を使い切りました。ログインして続けてください',
       quotaUser: '本日の回数を使い切りました。明日またどうぞ',
       busy: '本日の無料枠が上限に達しました。ログインして続けてください',

@@ -54,12 +54,28 @@ export function CnHero() {
   const [typed, setTyped] = useState(copy.modes.agent.prompts[0])
   const [promptIndex, setPromptIndex] = useState(0)
   const [dlOpen, setDlOpen] = useState(false)
+  const [dlPlacement, setDlPlacement] = useState<'down' | 'up'>('down')
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const dlRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
-  // The menu is a plain popover: outside clicks and Escape dismiss it.
+  // The menu is a plain popover: outside clicks and Escape dismiss it, and
+  // its vertical direction flips upward when the viewport bottom is too close.
   useEffect(() => {
     if (!dlOpen) return
+    const updatePlacement = () => {
+      const wrap = dlRef.current
+      if (!wrap) return
+      const rect = wrap.getBoundingClientRect()
+      const menuHeight = menuRef.current?.offsetHeight || 132
+      const gap = 16
+      const spaceBelow = window.innerHeight - rect.bottom
+      const spaceAbove = rect.top
+      setDlPlacement(
+        spaceBelow < menuHeight + gap && spaceAbove > spaceBelow ? 'up' : 'down'
+      )
+    }
+    updatePlacement()
     const onPointerDown = (event: PointerEvent) => {
       if (!dlRef.current?.contains(event.target as Node)) setDlOpen(false)
     }
@@ -68,9 +84,13 @@ export function CnHero() {
     }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
+    window.addEventListener('scroll', updatePlacement, { passive: true })
+    window.addEventListener('resize', updatePlacement)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('scroll', updatePlacement)
+      window.removeEventListener('resize', updatePlacement)
     }
   }, [dlOpen])
 
@@ -212,7 +232,7 @@ export function CnHero() {
 
         <div className='hero-dl'>
           <div
-            className={`split-dl${dlOpen ? ' open' : ''}`}
+            className={`split-dl${dlOpen ? ' open' : ''}${dlPlacement === 'up' ? ' up' : ''}`}
             ref={dlRef}
           >
             <a
@@ -254,18 +274,30 @@ export function CnHero() {
                 />
               </svg>
             </button>
-            <div className='split-menu' role='menu'>
-              <a className='split-item' href={DOWNLOAD_MAC_ARM64} role='menuitem'>
+            <div className='split-menu' ref={menuRef} role='menu'>
+              <a
+                className='split-item'
+                href={DOWNLOAD_MAC_ARM64}
+                role='menuitem'
+                onClick={() => setDlOpen(false)}
+              >
                 <span className='t'>{copy.dlMacArm}</span>
-                <span className='n'>{copy.dlMacArmNote}</span>
               </a>
-              <a className='split-item' href={DOWNLOAD_MAC_X64} role='menuitem'>
+              <a
+                className='split-item'
+                href={DOWNLOAD_MAC_X64}
+                role='menuitem'
+                onClick={() => setDlOpen(false)}
+              >
                 <span className='t'>{copy.dlMacIntel}</span>
-                <span className='n'>{copy.dlMacIntelNote}</span>
               </a>
-              <a className='split-item' href={DOWNLOAD_WIN} role='menuitem'>
+              <a
+                className='split-item'
+                href={DOWNLOAD_WIN}
+                role='menuitem'
+                onClick={() => setDlOpen(false)}
+              >
                 <span className='t'>{copy.dlWinX64}</span>
-                <span className='n'>{copy.dlWinX64Note}</span>
               </a>
             </div>
           </div>

@@ -27,9 +27,9 @@ export const zhTW: LandingCopy = {
     home: '首頁',
     models: '模型',
     tools: '工具',
-    forAI: 'For AI',
     ext: '擴充功能',
     pricing: '價格',
+    resources: '資源',
     download: '下載',
     login: '登入',
     menuOpen: '開啟選單',
@@ -41,6 +41,14 @@ export const zhTW: LandingCopy = {
       group: '創意',
       video: 'TikTok 影片下載',
       photo: 'TikTok 圖文下載',
+      agentGroup: 'Agent',
+      cli: 'CLI',
+      skills: 'Skills',
+    },
+    resourcesMenu: {
+      aria: '資源選單',
+      inspiration: '靈感社群',
+      docs: '開發文件',
     },
     account: {
       aria: '帳戶選單',
@@ -67,9 +75,9 @@ export const zhTW: LandingCopy = {
   hero: {
     titleA: '發現、複刻和裂變',
     titleB: '電商爆款影片',
-    subPre: 'OmniMux 桌面版協助',
-    subHighlight: 'TikTok Shop、Instagram 與 YouTube 賣家',
-    subPost: '用 AI 創作、複刻並發佈帶貨影片，提高轉換率。',
+    subPre: '一套內容電商系統，讓商品賣點貫穿每一次出片。用',
+    subHighlight: '你熟悉的 Agent',
+    subPost: '，一站式搞定廣告、電商與種草影片。',
     tabsAria: '創作方式',
     tabs: { agent: 'Agent', video: '影片', image: '圖片' },
     inputLabel: '描述你想做的內容',
@@ -80,18 +88,15 @@ export const zhTW: LandingCopy = {
     dlMenuAria: '選擇下載版本',
     ghStar: '在 GitHub 點 Star',
     dlMacArm: 'macOS（Apple 晶片）',
-    dlMacArmNote: '需要 macOS 13 或更高版本 · M1/M2/M3/M4',
     dlMacIntel: 'macOS（Intel）',
-    dlMacIntelNote: '需要 macOS 13 或更高版本 · 2020 年前 Mac',
     dlWinX64: 'Windows（64 位元）',
-    dlWinX64Note: '需要 Windows 10 或更高版本',
     skillsLabel: '技能',
     skillsAria: '技能',
     skills: [
       {
         icon: 'scan',
         label: '拆解影片/圖文',
-        fill: '拆解這支影片為什麼會爆，整理開場鉤子、賣點和購買引導 https://v.douyin.com/',
+        fill: '拆解這支影片為什麼會爆，整理開場鉤子、賣點和購買引導 https://www.tiktok.com/',
       },
       {
         icon: 'video',
@@ -117,7 +122,7 @@ export const zhTW: LandingCopy = {
     modes: {
       agent: {
         prompts: [
-          '拆解這支影片為什麼會爆 https://v.douyin.com/iR7xKq2/',
+          '拆解這支影片為什麼會爆 https://www.tiktok.com/@pet.diary/video/73421',
           '用這支爆款幫 @精華液 做 3 支，可直接發佈，15 秒',
           '分析 @小鹿的護膚日記 最近 30 天的打法',
         ],
@@ -171,7 +176,7 @@ export const zhTW: LandingCopy = {
     msgPre: '用這支爆款幫',
     msgProducts: ['@寵物糧', '@吊帶褲', '@藍牙耳機'],
     msgPost: '各做一支，可直接發佈，15 秒。',
-    linkCard: 'v.douyin.com/iR7xKq2/ · 擼貓日常，貓糧開箱',
+    linkCard: 'tiktok.com/@pet.diary/video/73421 · 擼貓日常，貓糧開箱',
     doneBreakdown: '已拆解參考影片為什麼會爆',
     kv: [
       { k: '開頭', v: '前 2 秒用前後對比' },
@@ -192,7 +197,7 @@ export const zhTW: LandingCopy = {
     vidNames: ['寵物糧', '吊帶褲', '藍牙耳機'],
     vidHooks: ['開頭 · 概念對比', '開頭 · 換裝', '開頭 · 特寫'],
     schedTitle: '排程發佈',
-    schedOk: '預檢通過',
+    schedOk: '已排期',
     schedPlatform: 'TikTok',
     schedTimes: ['週二 19:00', '週三 12:30', '週四 19:00'],
     schedAll: '全部排程',
@@ -274,7 +279,7 @@ export const zhTW: LandingCopy = {
 
     breakdown: {
       tabsAria: '拆解對象',
-      tabs: { video: '影片', account: '競品帳號', category: '品類趨勢' },
+      tabs: { video: '影片', account: '競品帳號 · 示意', category: '品類趨勢 · 示意' },
       statsViews: '1500萬+ 播放',
       statsLikes: '32萬+ 按讚',
       why: '為什麼能賣',
@@ -313,7 +318,7 @@ export const zhTW: LandingCopy = {
       ],
       accountCta: '用這套打法幫 @精華液 做 3 支',
       catTitle: '美妝個護',
-      catMeta: '近 7 天 · 熱門 200 支',
+      catMeta: '近 7 天 · 熱門 200 支 · 示例資料',
       bars: [
         { label: '前後對比', value: '38%' },
         { label: '開箱試用', value: '24%' },
@@ -391,10 +396,6 @@ export const zhTW: LandingCopy = {
         {
           title: '多平台一次提交',
           desc: 'TikTok、Instagram、Facebook、YouTube，選好帳號一次提交，每個帳號單獨追蹤狀態。',
-        },
-        {
-          title: '發佈前自動檢查',
-          desc: '依平台規則檢查封面、圖片數量、原創聲明和 AI 生成標示；帳號和內容仍須遵守平台規則。',
         },
         {
           title: '帳號統一管理',
@@ -679,7 +680,7 @@ export const zhTW: LandingCopy = {
       },
       {
         q: '如何用 AI 製作帶貨影片？',
-        a: '貼上商品連結或選擇爆款參考，幾分鐘內生成原創或複刻影片，再發佈到你已連結的平台。無需拍攝或剪輯。',
+        a: '貼上商品連結或選擇爆款參考，生成原創或複刻影片，再發佈到你已連結的平台。無需拍攝或剪輯。',
       },
       {
         q: '生成的影片可以直接發佈嗎？',
@@ -687,7 +688,7 @@ export const zhTW: LandingCopy = {
       },
       {
         q: '用 AI 做的影片會不會導致帳號被封？',
-        a: 'OmniMux 不承諾防封號。帳號是否安全，取決於你的內容和帳號行為。發佈前桌面版會依平台規則檢查封面、原創聲明和 AI 生成標示等參數，請遵守各平台規則。',
+        a: 'OmniMux 不承諾防封號。帳號是否安全，取決於你的內容和帳號行為。發佈時可為影片添加 AI 生成內容聲明，請遵守各平台規則。',
       },
       {
         q: '是否支援商品圖片轉影片？',
@@ -842,6 +843,8 @@ export const zhTW: LandingCopy = {
       wrongKindVideo: '這是影片連結',
       toVideo: '去影片下載',
       unavailable: '該內容不公開或已刪除，無法解析',
+      serviceUnavailable: '解析服務暫未開放',
+      upstreamFailed: 'TikTok 暫時沒有回應，請稍後再試',
       quotaAnon: '今日免費次數已用完，登入後繼續',
       quotaUser: '今日次數已用完，明天再來',
       busy: '今日免費額度已滿，登入後繼續使用',
