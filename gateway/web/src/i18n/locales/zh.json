@@ -126,6 +126,8 @@
     "{{operation}} (ID: {{id}})": "{{operation}}（ID: {{id}}）",
     "{{options}} removed: not compatible with the rest of this look in this mode.": "已移除 {{options}}：在当前模式下与其余设定不兼容。",
     "{{percent}}% OFF": "优惠 {{percent}}%",
+    "{{price}} top-up, get {{credits}}": "{{price}} top-up, get {{credits}}",
+    "{{price}} top-up, get {{credits}}, save {{saved}}": "{{price}} top-up, get {{credits}}, save {{saved}}",
     "{{processed}} of {{total}} log entries processed.": "已处理 {{processed}} / {{total}} 条日志。",
     "{{protocol}} auth name": "{{protocol}} 认证名称",
     "{{protocol}} auth value": "{{protocol}} 认证值",
@@ -9413,6 +9415,17 @@
     "Temporarily unavailable": "暂不可用",
     "Keep this page open": "请保持页面打开",
     "Up to 9 reference images": "最多 9 张参考图",
-    "First image defines the subject": "第一张图定义主体"
+    "First image defines the subject": "第一张图定义主体",
+    "Add credits in Wallet and come back to continue.": "在钱包中充值后回来继续。",
+    "Choose an amount": "选择金额",
+    "Opening Stripe…": "正在打开 Stripe…",
+    "Pay with Stripe": "使用 Stripe 支付",
+    "Pay {{price}} with Stripe": "使用 Stripe 支付 {{price}}",
+    "Payment is processed by Stripe.": "支付由 Stripe 处理。",
+    "Top up in Wallet": "在钱包中充值",
+    "Top up successful": "充值成功",
+    "Top up to continue this generation": "充值以继续本次生成",
+    "Top up": "充值",
+    "Your credits are ready — generation resumes automatically.": "积分已到账，生成将自动继续。"
   }
 }
