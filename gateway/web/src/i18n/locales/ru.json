@@ -126,6 +126,8 @@
     "{{operation}} (ID: {{id}})": "{{operation}} (ID: {{id}})",
     "{{options}} removed: not compatible with the rest of this look in this mode.": "{{options}} удалено: несовместимо с остальными настройками образа в этом режиме.",
     "{{percent}}% OFF": "Скидка {{percent}}%",
+    "{{price}} top-up, get {{credits}}": "{{price}} top-up, get {{credits}}",
+    "{{price}} top-up, get {{credits}}, save {{saved}}": "{{price}} top-up, get {{credits}}, save {{saved}}",
     "{{processed}} of {{total}} log entries processed.": "Обработано {{processed}} из {{total}} записей журнала.",
     "{{protocol}} auth name": "Имя аутентификации {{protocol}}",
     "{{protocol}} auth value": "Значение аутентификации {{protocol}}",
@@ -9413,6 +9415,17 @@
     "Temporarily unavailable": "Временно недоступно",
     "Keep this page open": "Не закрывайте эту страницу",
     "Up to 9 reference images": "До 9 референсных изображений",
-    "First image defines the subject": "Первое изображение задаёт субъект"
+    "First image defines the subject": "Первое изображение задаёт субъект",
+    "Add credits in Wallet and come back to continue.": "Пополните кредиты в кошельке и вернитесь, чтобы продолжить.",
+    "Choose an amount": "Выберите сумму",
+    "Opening Stripe…": "Открываем Stripe…",
+    "Pay with Stripe": "Оплатить через Stripe",
+    "Pay {{price}} with Stripe": "Оплатить {{price}} через Stripe",
+    "Payment is processed by Stripe.": "Платёж обрабатывается Stripe.",
+    "Top up in Wallet": "Пополнить в кошельке",
+    "Top up successful": "Пополнение выполнено",
+    "Top up to continue this generation": "Пополните баланс, чтобы продолжить эту генерацию",
+    "Top up": "Пополнить",
+    "Your credits are ready — generation resumes automatically.": "Кредиты зачислены — генерация продолжится автоматически."
   }
 }
