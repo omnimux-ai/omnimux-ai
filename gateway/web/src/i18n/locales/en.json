@@ -126,6 +126,8 @@
     "{{operation}} (ID: {{id}})": "{{operation}} (ID: {{id}})",
     "{{options}} removed: not compatible with the rest of this look in this mode.": "{{options}} removed: not compatible with the rest of this look in this mode.",
     "{{percent}}% OFF": "{{percent}}% OFF",
+    "{{price}} top-up, get {{credits}}": "{{price}} top-up, get {{credits}}",
+    "{{price}} top-up, get {{credits}}, save {{saved}}": "{{price}} top-up, get {{credits}}, save {{saved}}",
     "{{processed}} of {{total}} log entries processed.": "{{processed}} of {{total}} log entries processed.",
     "{{protocol}} auth name": "{{protocol}} auth name",
     "{{protocol}} auth value": "{{protocol}} auth value",
@@ -9413,6 +9415,17 @@
     "Temporarily unavailable": "Temporarily unavailable",
     "Keep this page open": "Keep this page open",
     "Up to 9 reference images": "Up to 9 reference images",
-    "First image defines the subject": "First image defines the subject"
+    "First image defines the subject": "First image defines the subject",
+    "Add credits in Wallet and come back to continue.": "Add credits in Wallet and come back to continue.",
+    "Choose an amount": "Choose an amount",
+    "Opening Stripe…": "Opening Stripe…",
+    "Pay with Stripe": "Pay with Stripe",
+    "Pay {{price}} with Stripe": "Pay {{price}} with Stripe",
+    "Payment is processed by Stripe.": "Payment is processed by Stripe.",
+    "Top up in Wallet": "Top up in Wallet",
+    "Top up successful": "Top up successful",
+    "Top up to continue this generation": "Top up to continue this generation",
+    "Top up": "Top up",
+    "Your credits are ready — generation resumes automatically.": "Your credits are ready — generation resumes automatically."
   }
 }
