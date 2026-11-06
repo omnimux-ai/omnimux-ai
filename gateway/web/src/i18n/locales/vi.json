@@ -126,6 +126,8 @@
     "{{operation}} (ID: {{id}})": "{{operation}} (ID: {{id}})",
     "{{options}} removed: not compatible with the rest of this look in this mode.": "Đã loại bỏ {{options}}: không tương thích với phần còn lại của phong cách này trong chế độ này.",
     "{{percent}}% OFF": "Giảm {{percent}}%",
+    "{{price}} top-up, get {{credits}}": "{{price}} top-up, get {{credits}}",
+    "{{price}} top-up, get {{credits}}, save {{saved}}": "{{price}} top-up, get {{credits}}, save {{saved}}",
     "{{processed}} of {{total}} log entries processed.": "Đã xử lý {{processed}}/{{total}} mục nhật ký.",
     "{{protocol}} auth name": "Tên xác thực {{protocol}}",
     "{{protocol}} auth value": "Giá trị xác thực {{protocol}}",
@@ -9413,6 +9415,17 @@
     "Temporarily unavailable": "Tạm thời không khả dụng",
     "Keep this page open": "Hãy giữ trang này mở",
     "Up to 9 reference images": "Tối đa 9 ảnh tham chiếu",
-    "First image defines the subject": "Ảnh đầu tiên xác định chủ thể"
+    "First image defines the subject": "Ảnh đầu tiên xác định chủ thể",
+    "Add credits in Wallet and come back to continue.": "Nạp tín dụng trong Ví rồi quay lại để tiếp tục.",
+    "Choose an amount": "Chọn số tiền",
+    "Opening Stripe…": "Đang mở Stripe…",
+    "Pay with Stripe": "Thanh toán bằng Stripe",
+    "Pay {{price}} with Stripe": "Thanh toán {{price}} bằng Stripe",
+    "Payment is processed by Stripe.": "Thanh toán được xử lý bởi Stripe.",
+    "Top up in Wallet": "Nạp tiền trong Ví",
+    "Top up successful": "Nạp tiền thành công",
+    "Top up to continue this generation": "Nạp tiền để tiếp tục lần tạo này",
+    "Top up": "Nạp tiền",
+    "Your credits are ready — generation resumes automatically.": "Tín dụng đã sẵn sàng — quá trình tạo sẽ tự động tiếp tục."
   }
 }
