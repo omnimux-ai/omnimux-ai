@@ -14,9 +14,8 @@ import {
 import { activateRowKeydown } from './a11y.js'
 import { addAssetToConversation } from './add-to-chat.js'
 import { cloudMediaUrl } from './api.js'
-import { preloadMedia } from './media-cache.js'
 import { activeDimensionCount, dimensionLabelOf, optionLabelOf } from './character-dimensions.js'
-import { cloudAudioTheme, cloudCardKind, isOfficialVoicePreviewAsset, isOfficialVoicePreviewPlayable } from './cloud-feed-helpers.js'
+import { cloudAudioTheme, cloudCardKind, coverLadderOf, isOfficialVoicePreviewAsset, isOfficialVoicePreviewPlayable, nextLadderStep } from './cloud-feed-helpers.js'
 import { CLOUD_ALL_CATEGORY } from './cloud-feed-helpers.js'
 import { useCloudAssetsFeed } from './use-cloud-assets-feed.js'
 import { useGridColumns } from './use-grid-columns.js'
@@ -48,6 +47,15 @@ const BARE_PREVIEW_CLASS = `${PREVIEW_CLASS} omnimux-assets-cloud-preview--bare`
 const NO_IDS = new Set()
 
 /**
+ * 指针在卡片上停留多久才自动试听（Issue #3875）。
+ *
+ * 一排卡片被快速划过时，零延迟起播会逐张下载 400 KB 级的原声，把正在加载的
+ * 封面挤慢；200 ms 足够滤掉「只是路过」，又短到不会被当成没反应。显式点击
+ * 播放键不经过这个门槛。
+ */
+export const HOVER_AUDITION_DELAY_MS = 200
+
+/**
  * 首次加载骨架卡张数随列数自适应（3 行，见 pageSizeFor），不再固定 12 张。
  */
 
@@ -70,14 +78,33 @@ const NO_IDS = new Set()
  * stylesheet already fades in.
  * @param {{ asset: any, broken: boolean, onBroken: () => void, hovering: boolean }} props
  */
-function CloudTileMedia(props) {
+/**
+ * The tile's picture surface, exported so its fallback ladder can be exercised
+ * as real DOM behaviour instead of by matching source text (#3879).
+ */
+export function CloudTileMedia(props) {
   const { asset, broken, onBroken, hovering } = props
-  const [coverFailed, setCoverFailed] = useState(false)
+  /**
+   * How far down the picture ladder this tile has fallen.
+   *
+   * 0 = the published thumbnail, 1 = the original cover, 2 = the Host route
+   * (legacy `file:` rows and catalogs built before thumbnails), 3 = give up.
+   * Each step only advances on a real load failure, so a working thumbnail is
+   * never traded for a heavier original.
+   */
+  const [srcStep, setSrcStep] = useState(0)
   const videoRef = useRef(/** @type {HTMLVideoElement | null} */ (null))
 
   const isVideo = asset.mediaType === 'video'
-  const coverSrc = asset.hasCover === true && !coverFailed ? cloudMediaUrl(asset.id, 'cover') : ''
-  const imageSrc = asset.mediaType === 'image' ? cloudMediaUrl(asset.id, 'media') : coverSrc
+  const hasCover = asset.hasCover === true
+  /**
+   * The picture the tile draws, cheapest first. The order lives in
+   * `coverLadderOf` so the "an image row walks the same ladder" rule — and the
+   * fact that a failed load always advances instead of stranding the tile — can
+   * be asserted as pure behaviour rather than by matching this source text.
+   */
+  const ladder = coverLadderOf(asset, cloudMediaUrl)
+  const imageSrc = ladder[srcStep] ?? ''
   const hasClip = asset.hasMedia === true
   // The clip is mounted for every video row — that is what plays on hover — and
   // for any other row whose file is the only thing left to draw. It is bare when
@@ -98,30 +125,31 @@ function CloudTileMedia(props) {
 
   // A bare clip has to decode the frame it already shows: at mount, and again if
   // the cover request failed after mount. A clip with a poster above it waits for
-  // hover, so nothing is fetched up front.
+  // hover, so nothing is fetched up front — that poster used to be a multi-megabyte
+  // original, and pulling a clip alongside it put the first screen on the wire twice.
   useEffect(() => {
     const element = videoRef.current
     if (!element || !bareClip || element.readyState > 0) return
     element.load()
   }, [bareClip])
 
-  // 挂载时预加载视频首帧与元数据，确保鼠标移上去时能瞬时秒播而不卡顿
-  useEffect(() => {
-    const element = videoRef.current
-    if (!element || !showClip || element.readyState > 0) return
-    element.load()
-  }, [showClip])
-
-  useEffect(() => { setCoverFailed(false) }, [asset.id])
+  useEffect(() => { setSrcStep(0) }, [asset.id])
 
   const Icon = TYPE_ICON[asset.mediaType] ?? DocIcon
   if (broken) return <Icon size={22} />
 
   const handleImageError = () => {
-    // A lost picture is survivable only when a clip can take its place: there is
-    // no second image source to try, because the row's original is a clip. A
-    // picture row has no clip behind it, so there the icon is the last resort.
-    if (asset.mediaType !== 'image' && hasClip) setCoverFailed(true)
+    // Step down the ladder before giving up. Only when there is no further
+    // picture to try does the tile fall back to its clip (for a video row) or
+    // to its type icon. Every row walks the same ladder, so this reaches the
+    // last resort on the very first failure at the final rung — it never
+    // depends on one URL failing repeatedly.
+    const next = nextLadderStep({ ladder, step: srcStep, mediaType: asset.mediaType, hasClip })
+    if (next.kind === 'advance') {
+      setSrcStep(next.step)
+      return
+    }
+    if (next.kind === 'hand-over-to-clip') setSrcStep(ladder.length)
     else onBroken()
   }
 
@@ -304,14 +332,29 @@ export function CloudAssetCard(props) {
   // 悬停直接播放试听（音频/角色卡）。
   // autoplaySuppressed（hook 上报：自动播放被拒/候选穷尽）期间不自动重启——
   // 否则 playingId 清空与 hovering 会制造「重试 + 重复提示」循环（OCR #12）。
+  //
+  // Issue #3875：进入要停留 HOVER_AUDITION_DELAY_MS 才起播。指针从一排卡片上
+  // 快速划过时，旧行为会逐张下载 400 KB 级的原声，与正在加载的封面抢带宽；
+  // 显式点击播放键仍走 togglePlay，零延迟，不受这个门槛影响。
+  //
+  // The callback is held in a ref, not in the dependency list. `onTogglePlay`
+  // is rebuilt whenever the stage re-renders (`useCloudAudition` returns a fresh
+  // object every time), and a dependency on it would restart this effect — and
+  // therefore clear the pending timer — on every parent render. A parent that
+  // re-renders faster than the delay would then never start the audition at all.
+  const togglePlayRef = useRef(onTogglePlay)
+  useEffect(() => { togglePlayRef.current = onTogglePlay }, [onTogglePlay])
   useEffect(() => {
-    if (!canPlay || userControlledRef.current || autoplaySuppressed) return
+    if (!canPlay || userControlledRef.current || autoplaySuppressed) return undefined
     if (hovering && !playing) {
-      onTogglePlay(asset)
-    } else if (!hovering && playing) {
-      onTogglePlay(asset)
+      const timer = setTimeout(() => { togglePlayRef.current(asset) }, HOVER_AUDITION_DELAY_MS)
+      return () => { clearTimeout(timer) }
     }
-  }, [hovering, canPlay, playing, asset, onTogglePlay, autoplaySuppressed])
+    if (!hovering && playing) {
+      togglePlayRef.current(asset)
+    }
+    return undefined
+  }, [hovering, canPlay, playing, asset, autoplaySuppressed])
 
   // The control sits over the card's top-right corner, so it claims its own
   // pointer event: without that, using it would also open the preview behind it.
@@ -686,15 +729,9 @@ export function CloudAssetsView(props) {
     return { title: t('cloud.empty.title'), description: t('cloud.empty.desc') }
   }, [filtered, searchActive, t])
 
-  // 视口封面优化（Issue 2151）：去掉整批封面全量预解码，依靠 img loading="lazy" 按视口懒加载；
-  // 仅在数据尾部保留下一屏条数的提前缓冲，避免滚到底时瞬时白块。
-  useEffect(() => {
-    const trailing = items.slice(Math.max(0, items.length - pageSize))
-    const covers = trailing
-      .filter((row) => row?.hasCover === true)
-      .map((row) => cloudMediaUrl(row.id, 'cover'))
-    preloadMedia(covers)
-  }, [items, pageSize])
+  // 封面只按视口加载（Issue #3875）：这里曾经把列表尾部的一整批封面无条件预解码，
+  // 与 img loading="lazy" 的视口策略互相抵消——首屏还没画完，末尾十几张几兆的大图
+  // 已经挤进网络管道。现在整批预取已删除，加载顺序完全交给浏览器按可见性决定。
 
   let body = null
   if (showRowLayout) {
