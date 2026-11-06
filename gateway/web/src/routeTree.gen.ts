@@ -35,6 +35,7 @@ import { Route as AuthenticatedHostedAdminRouteRouteImport } from './routes/_aut
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as AiInfluencerStudioIndexRouteImport } from './routes/ai-influencer-studio/index'
+import { Route as CliIndexRouteImport } from './routes/cli/index'
 import { Route as CliLoginRouteImport } from './routes/cli/login'
 import { Route as InfluencerIndexRouteImport } from './routes/influencer/index'
 import { Route as InspirationIndexRouteImport } from './routes/inspiration/index'
@@ -44,6 +45,7 @@ import { Route as PricingIndexRouteImport } from './routes/pricing/index'
 import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as SShareIdRouteImport } from './routes/s/$shareId'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
+import { Route as SkillsIndexRouteImport } from './routes/skills/index'
 import { Route as ToolsTiktokPhotoDownloaderRouteImport } from './routes/tools/tiktok-photo-downloader'
 import { Route as ToolsTiktokVideoDownloaderRouteImport } from './routes/tools/tiktok-video-downloader'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
@@ -73,8 +75,18 @@ import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_aut
 import { Route as AuthenticatedUsageLogsAuditRouteImport } from './routes/_authenticated/usage-logs/audit'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
+import { Route as EsCliIndexRouteImport } from './routes/es/cli/index'
+import { Route as EsSkillsIndexRouteImport } from './routes/es/skills/index'
+import { Route as IdCliIndexRouteImport } from './routes/id/cli/index'
+import { Route as IdSkillsIndexRouteImport } from './routes/id/skills/index'
 import { Route as InspirationModelsModelSlugRouteImport } from './routes/inspiration/models/$modelSlug'
+import { Route as JaCliIndexRouteImport } from './routes/ja/cli/index'
+import { Route as JaSkillsIndexRouteImport } from './routes/ja/skills/index'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as ZhTwCliIndexRouteImport } from './routes/zh-tw/cli/index'
+import { Route as ZhTwSkillsIndexRouteImport } from './routes/zh-tw/skills/index'
+import { Route as ZhCliIndexRouteImport } from './routes/zh/cli/index'
+import { Route as ZhSkillsIndexRouteImport } from './routes/zh/skills/index'
 import { Route as ZhToolsTiktokPhotoDownloaderRouteImport } from './routes/zh/tools/tiktok-photo-downloader'
 import { Route as ZhToolsTiktokVideoDownloaderRouteImport } from './routes/zh/tools/tiktok-video-downloader'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
@@ -224,6 +236,11 @@ const AiInfluencerStudioIndexRoute = AiInfluencerStudioIndexRouteImport.update({
   path: '/ai-influencer-studio/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CliIndexRoute = CliIndexRouteImport.update({
+  id: '/cli/',
+  path: '/cli/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CliLoginRoute = CliLoginRouteImport.update({
   id: '/cli/login',
   path: '/cli/login',
@@ -267,6 +284,11 @@ const SShareIdRoute = SShareIdRouteImport.update({
 const SetupIndexRoute = SetupIndexRouteImport.update({
   id: '/setup/',
   path: '/setup/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkillsIndexRoute = SkillsIndexRouteImport.update({
+  id: '/skills/',
+  path: '/skills/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsTiktokPhotoDownloaderRoute =
@@ -439,15 +461,65 @@ const AuthenticatedWalletIndexRoute =
     path: '/wallet/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const EsCliIndexRoute = EsCliIndexRouteImport.update({
+  id: '/es/cli/',
+  path: '/es/cli/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EsSkillsIndexRoute = EsSkillsIndexRouteImport.update({
+  id: '/es/skills/',
+  path: '/es/skills/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IdCliIndexRoute = IdCliIndexRouteImport.update({
+  id: '/id/cli/',
+  path: '/id/cli/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IdSkillsIndexRoute = IdSkillsIndexRouteImport.update({
+  id: '/id/skills/',
+  path: '/id/skills/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InspirationModelsModelSlugRoute =
   InspirationModelsModelSlugRouteImport.update({
     id: '/inspiration/models/$modelSlug',
     path: '/inspiration/models/$modelSlug',
     getParentRoute: () => rootRouteImport,
   } as any)
+const JaCliIndexRoute = JaCliIndexRouteImport.update({
+  id: '/ja/cli/',
+  path: '/ja/cli/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JaSkillsIndexRoute = JaSkillsIndexRouteImport.update({
+  id: '/ja/skills/',
+  path: '/ja/skills/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   id: '/pricing/$modelId/',
   path: '/pricing/$modelId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ZhTwCliIndexRoute = ZhTwCliIndexRouteImport.update({
+  id: '/zh-tw/cli/',
+  path: '/zh-tw/cli/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ZhTwSkillsIndexRoute = ZhTwSkillsIndexRouteImport.update({
+  id: '/zh-tw/skills/',
+  path: '/zh-tw/skills/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ZhCliIndexRoute = ZhCliIndexRouteImport.update({
+  id: '/zh/cli/',
+  path: '/zh/cli/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ZhSkillsIndexRoute = ZhSkillsIndexRouteImport.update({
+  id: '/zh/skills/',
+  path: '/zh/skills/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ZhToolsTiktokPhotoDownloaderRoute =
@@ -590,11 +662,13 @@ export interface FileRoutesByFullPath {
   '/tools/tiktok-video-downloader': typeof ToolsTiktokVideoDownloaderRoute
   '/about/': typeof AboutIndexRoute
   '/ai-influencer-studio/': typeof AiInfluencerStudioIndexRoute
+  '/cli/': typeof CliIndexRoute
   '/influencer/': typeof InfluencerIndexRoute
   '/inspiration/': typeof InspirationIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
+  '/skills/': typeof SkillsIndexRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -625,7 +699,17 @@ export interface FileRoutesByFullPath {
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/es/cli/': typeof EsCliIndexRoute
+  '/es/skills/': typeof EsSkillsIndexRoute
+  '/id/cli/': typeof IdCliIndexRoute
+  '/id/skills/': typeof IdSkillsIndexRoute
+  '/ja/cli/': typeof JaCliIndexRoute
+  '/ja/skills/': typeof JaSkillsIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
+  '/zh-tw/cli/': typeof ZhTwCliIndexRoute
+  '/zh-tw/skills/': typeof ZhTwSkillsIndexRoute
+  '/zh/cli/': typeof ZhCliIndexRoute
+  '/zh/skills/': typeof ZhSkillsIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -672,11 +756,13 @@ export interface FileRoutesByTo {
   '/tools/tiktok-video-downloader': typeof ToolsTiktokVideoDownloaderRoute
   '/about': typeof AboutIndexRoute
   '/ai-influencer-studio': typeof AiInfluencerStudioIndexRoute
+  '/cli': typeof CliIndexRoute
   '/influencer': typeof InfluencerIndexRoute
   '/inspiration': typeof InspirationIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/rankings': typeof RankingsIndexRoute
   '/setup': typeof SetupIndexRoute
+  '/skills': typeof SkillsIndexRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -707,7 +793,17 @@ export interface FileRoutesByTo {
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
+  '/es/cli': typeof EsCliIndexRoute
+  '/es/skills': typeof EsSkillsIndexRoute
+  '/id/cli': typeof IdCliIndexRoute
+  '/id/skills': typeof IdSkillsIndexRoute
+  '/ja/cli': typeof JaCliIndexRoute
+  '/ja/skills': typeof JaSkillsIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
+  '/zh-tw/cli': typeof ZhTwCliIndexRoute
+  '/zh-tw/skills': typeof ZhTwSkillsIndexRoute
+  '/zh/cli': typeof ZhCliIndexRoute
+  '/zh/skills': typeof ZhSkillsIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -759,11 +855,13 @@ export interface FileRoutesById {
   '/tools/tiktok-video-downloader': typeof ToolsTiktokVideoDownloaderRoute
   '/about/': typeof AboutIndexRoute
   '/ai-influencer-studio/': typeof AiInfluencerStudioIndexRoute
+  '/cli/': typeof CliIndexRoute
   '/influencer/': typeof InfluencerIndexRoute
   '/inspiration/': typeof InspirationIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
+  '/skills/': typeof SkillsIndexRoute
   '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
@@ -794,7 +892,17 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/es/cli/': typeof EsCliIndexRoute
+  '/es/skills/': typeof EsSkillsIndexRoute
+  '/id/cli/': typeof IdCliIndexRoute
+  '/id/skills/': typeof IdSkillsIndexRoute
+  '/ja/cli/': typeof JaCliIndexRoute
+  '/ja/skills/': typeof JaSkillsIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
+  '/zh-tw/cli/': typeof ZhTwCliIndexRoute
+  '/zh-tw/skills/': typeof ZhTwSkillsIndexRoute
+  '/zh/cli/': typeof ZhCliIndexRoute
+  '/zh/skills/': typeof ZhSkillsIndexRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/_authenticated/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -845,11 +953,13 @@ export interface FileRouteTypes {
     | '/tools/tiktok-video-downloader'
     | '/about/'
     | '/ai-influencer-studio/'
+    | '/cli/'
     | '/influencer/'
     | '/inspiration/'
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
+    | '/skills/'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
@@ -880,7 +990,17 @@ export interface FileRouteTypes {
     | '/usage-logs/'
     | '/users/'
     | '/wallet/'
+    | '/es/cli/'
+    | '/es/skills/'
+    | '/id/cli/'
+    | '/id/skills/'
+    | '/ja/cli/'
+    | '/ja/skills/'
     | '/pricing/$modelId/'
+    | '/zh-tw/cli/'
+    | '/zh-tw/skills/'
+    | '/zh/cli/'
+    | '/zh/skills/'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
@@ -927,11 +1047,13 @@ export interface FileRouteTypes {
     | '/tools/tiktok-video-downloader'
     | '/about'
     | '/ai-influencer-studio'
+    | '/cli'
     | '/influencer'
     | '/inspiration'
     | '/pricing'
     | '/rankings'
     | '/setup'
+    | '/skills'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
@@ -962,7 +1084,17 @@ export interface FileRouteTypes {
     | '/usage-logs'
     | '/users'
     | '/wallet'
+    | '/es/cli'
+    | '/es/skills'
+    | '/id/cli'
+    | '/id/skills'
+    | '/ja/cli'
+    | '/ja/skills'
     | '/pricing/$modelId'
+    | '/zh-tw/cli'
+    | '/zh-tw/skills'
+    | '/zh/cli'
+    | '/zh/skills'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
@@ -1013,11 +1145,13 @@ export interface FileRouteTypes {
     | '/tools/tiktok-video-downloader'
     | '/about/'
     | '/ai-influencer-studio/'
+    | '/cli/'
     | '/influencer/'
     | '/inspiration/'
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
+    | '/skills/'
     | '/(auth)/user/reset'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
@@ -1048,7 +1182,17 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
+    | '/es/cli/'
+    | '/es/skills/'
+    | '/id/cli/'
+    | '/id/skills/'
+    | '/ja/cli/'
+    | '/ja/skills/'
     | '/pricing/$modelId/'
+    | '/zh-tw/cli/'
+    | '/zh-tw/skills/'
+    | '/zh/cli/'
+    | '/zh/skills/'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
     | '/_authenticated/system-settings/content/$section'
@@ -1090,15 +1234,27 @@ export interface RootRouteChildren {
   ToolsTiktokVideoDownloaderRoute: typeof ToolsTiktokVideoDownloaderRoute
   AboutIndexRoute: typeof AboutIndexRoute
   AiInfluencerStudioIndexRoute: typeof AiInfluencerStudioIndexRoute
+  CliIndexRoute: typeof CliIndexRoute
   InfluencerIndexRoute: typeof InfluencerIndexRoute
   InspirationIndexRoute: typeof InspirationIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
   RankingsIndexRoute: typeof RankingsIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
+  SkillsIndexRoute: typeof SkillsIndexRoute
   InspirationModelsModelSlugRoute: typeof InspirationModelsModelSlugRoute
   ZhToolsTiktokPhotoDownloaderRoute: typeof ZhToolsTiktokPhotoDownloaderRoute
   ZhToolsTiktokVideoDownloaderRoute: typeof ZhToolsTiktokVideoDownloaderRoute
+  EsCliIndexRoute: typeof EsCliIndexRoute
+  EsSkillsIndexRoute: typeof EsSkillsIndexRoute
+  IdCliIndexRoute: typeof IdCliIndexRoute
+  IdSkillsIndexRoute: typeof IdSkillsIndexRoute
+  JaCliIndexRoute: typeof JaCliIndexRoute
+  JaSkillsIndexRoute: typeof JaSkillsIndexRoute
   PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
+  ZhTwCliIndexRoute: typeof ZhTwCliIndexRoute
+  ZhTwSkillsIndexRoute: typeof ZhTwSkillsIndexRoute
+  ZhCliIndexRoute: typeof ZhCliIndexRoute
+  ZhSkillsIndexRoute: typeof ZhSkillsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1285,6 +1441,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiInfluencerStudioIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cli/': {
+      id: '/cli/'
+      path: '/cli'
+      fullPath: '/cli/'
+      preLoaderRoute: typeof CliIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cli/login': {
       id: '/cli/login'
       path: '/cli/login'
@@ -1346,6 +1509,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup/'
       preLoaderRoute: typeof SetupIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skills/': {
+      id: '/skills/'
+      path: '/skills'
+      fullPath: '/skills/'
+      preLoaderRoute: typeof SkillsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools/tiktok-photo-downloader': {
@@ -1551,6 +1721,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWalletIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/es/cli/': {
+      id: '/es/cli/'
+      path: '/es/cli'
+      fullPath: '/es/cli/'
+      preLoaderRoute: typeof EsCliIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/es/skills/': {
+      id: '/es/skills/'
+      path: '/es/skills'
+      fullPath: '/es/skills/'
+      preLoaderRoute: typeof EsSkillsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/id/cli/': {
+      id: '/id/cli/'
+      path: '/id/cli'
+      fullPath: '/id/cli/'
+      preLoaderRoute: typeof IdCliIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/id/skills/': {
+      id: '/id/skills/'
+      path: '/id/skills'
+      fullPath: '/id/skills/'
+      preLoaderRoute: typeof IdSkillsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inspiration/models/$modelSlug': {
       id: '/inspiration/models/$modelSlug'
       path: '/inspiration/models/$modelSlug'
@@ -1558,11 +1756,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InspirationModelsModelSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ja/cli/': {
+      id: '/ja/cli/'
+      path: '/ja/cli'
+      fullPath: '/ja/cli/'
+      preLoaderRoute: typeof JaCliIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ja/skills/': {
+      id: '/ja/skills/'
+      path: '/ja/skills'
+      fullPath: '/ja/skills/'
+      preLoaderRoute: typeof JaSkillsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing/$modelId/': {
       id: '/pricing/$modelId/'
       path: '/pricing/$modelId'
       fullPath: '/pricing/$modelId/'
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/zh-tw/cli/': {
+      id: '/zh-tw/cli/'
+      path: '/zh-tw/cli'
+      fullPath: '/zh-tw/cli/'
+      preLoaderRoute: typeof ZhTwCliIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/zh-tw/skills/': {
+      id: '/zh-tw/skills/'
+      path: '/zh-tw/skills'
+      fullPath: '/zh-tw/skills/'
+      preLoaderRoute: typeof ZhTwSkillsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/zh/cli/': {
+      id: '/zh/cli/'
+      path: '/zh/cli'
+      fullPath: '/zh/cli/'
+      preLoaderRoute: typeof ZhCliIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/zh/skills/': {
+      id: '/zh/skills/'
+      path: '/zh/skills'
+      fullPath: '/zh/skills/'
+      preLoaderRoute: typeof ZhSkillsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/zh/tools/tiktok-photo-downloader': {
@@ -1886,15 +2126,27 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsTiktokVideoDownloaderRoute: ToolsTiktokVideoDownloaderRoute,
   AboutIndexRoute: AboutIndexRoute,
   AiInfluencerStudioIndexRoute: AiInfluencerStudioIndexRoute,
+  CliIndexRoute: CliIndexRoute,
   InfluencerIndexRoute: InfluencerIndexRoute,
   InspirationIndexRoute: InspirationIndexRoute,
   PricingIndexRoute: PricingIndexRoute,
   RankingsIndexRoute: RankingsIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
+  SkillsIndexRoute: SkillsIndexRoute,
   InspirationModelsModelSlugRoute: InspirationModelsModelSlugRoute,
   ZhToolsTiktokPhotoDownloaderRoute: ZhToolsTiktokPhotoDownloaderRoute,
   ZhToolsTiktokVideoDownloaderRoute: ZhToolsTiktokVideoDownloaderRoute,
+  EsCliIndexRoute: EsCliIndexRoute,
+  EsSkillsIndexRoute: EsSkillsIndexRoute,
+  IdCliIndexRoute: IdCliIndexRoute,
+  IdSkillsIndexRoute: IdSkillsIndexRoute,
+  JaCliIndexRoute: JaCliIndexRoute,
+  JaSkillsIndexRoute: JaSkillsIndexRoute,
   PricingModelIdIndexRoute: PricingModelIdIndexRoute,
+  ZhTwCliIndexRoute: ZhTwCliIndexRoute,
+  ZhTwSkillsIndexRoute: ZhTwSkillsIndexRoute,
+  ZhCliIndexRoute: ZhCliIndexRoute,
+  ZhSkillsIndexRoute: ZhSkillsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
