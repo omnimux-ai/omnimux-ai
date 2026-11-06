@@ -83,6 +83,7 @@ var accessTokenExemptRoutes = []string{
 	"GET /api/social/v1/status",
 	"GET /api/social/v1/oauth/tiktok/callback",
 	"POST /api/social/v1/oauth/tiktok/callback",
+	"GET /api/social/v1/public/media/:token",
 	"GET /api/inspiration/v1/status",
 	"GET /api/inspiration/v1/categories",
 	"GET /api/inspiration/v1/share/:id",

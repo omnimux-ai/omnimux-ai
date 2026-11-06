@@ -121,5 +121,8 @@ node_modules
 .artifacts/
 .demo-assets/
 .dsh-kanban-flow.json
+# Per-task demo and probe directories. Ignoring the directory keeps a stray
+# `git add -A` from sweeping tens of MB of screenshots into a commit.
+.scratch/
 __pycache__/
 *.pyc

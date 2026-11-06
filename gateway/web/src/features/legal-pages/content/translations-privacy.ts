@@ -41,6 +41,7 @@ Nous collectons les catégories de données personnelles suivantes :
 - **Formule et crédits** : votre formule, votre solde de crédits et l’historique de vos crédits.
 - **Historique des paiements** : ce que vous avez acheté et à quelle date. Les données de carte sont traitées par notre prestataire de paiement et ne sont jamais visibles par OmniMux.
 - **Données techniques** : les journaux nécessaires au fonctionnement et à la sécurité du service, notamment l’adresse IP, les informations sur le navigateur et l’appareil, les rapports d’erreur et les horodatages.
+- **Données du compte TikTok connecté (facultatif)** : lorsque vous reliez votre compte TikTok via TikTok Login Kit, nous recevons votre identifiant TikTok (open_id), votre avatar, votre nom d’affichage, vos paramètres de publication créateur ainsi que les jetons d’accès et d’actualisation OAuth nécessaires pour agir selon vos instructions. Nous ne recevons jamais votre mot de passe TikTok.
 
 Nous ne vendons pas vos données personnelles et nous ne les utilisons pas pour établir des profils publicitaires.
 
@@ -59,6 +60,7 @@ Vous pouvez importer des photos et vidéos représentant des personnes réelles,
 Nous utilisons vos données personnelles aux fins suivantes. Chaque finalité repose sur une base juridique.
 
 - **Fournir le service (exécution d’un contrat)** : créer et sécuriser votre compte, stocker vos personnages et fichiers importés, effectuer les générations auprès de nos fournisseurs de modèles d’IA, tenir votre solde de crédits et livrer les médias demandés. Nous ne pouvons pas fournir le service sans ces données.
+- **Connecter et publier sur votre compte TikTok (exécution d’un contrat et autorisation explicite)** : afficher votre compte TikTok lié dans votre espace, vérifier vos capacités de publication (creator_info), et téléverser ou publier les vidéos et carrousels photo que vous sélectionnez sur votre profil TikTok via l’API TikTok Content Posting, ainsi que vérifier l’état de publication. Nous ne publions jamais sans votre action explicite.
 - **Sécuriser le service et prévenir les abus (intérêts légitimes)** : détecter la fraude, les usages abusifs et les tentatives de génération de contenu interdit, faire respecter notre [Politique d’utilisation acceptable](/acceptable-use) et protéger le service et les autres utilisateurs. Nous mettons ces intérêts en balance avec vos droits et attentes.
 - **Respecter les obligations légales (obligation légale)** : conserver les documents de facturation, fiscaux et comptables et répondre aux demandes légales des autorités.
 - **Envoyer des e-mails sur les produits et des communications commerciales (consentement)** : uniquement si vous y avez consenti. Vous pouvez retirer votre consentement à tout moment via le lien dans l’e-mail ou en écrivant à hello@omnimux.ai ; nous cesserons alors les envois commerciaux. Nous pouvons continuer à envoyer les messages de service nécessaires à votre compte, notamment les avis de sécurité, de facturation et de modification des politiques.
@@ -73,6 +75,7 @@ Nous ne vendons pas vos données personnelles et ne les partageons pas à des fi
   - nos fournisseurs de modèles d’IA, qui génèrent les images et vidéos demandées ;
   - notre prestataire de messagerie, qui envoie les e-mails de compte et de service ;
   - notre prestataire de paiement, qui traite les paiements et gère directement les données de carte.
+- **Plateformes tierces que vous connectez (TikTok)** : lorsque vous reliez votre compte TikTok et soumettez une publication, les médias et paramètres choisis sont transmis à TikTok (et, le cas échéant, à notre sous-traitant d’infrastructure de publication sociale) conformément aux conditions et à la politique de confidentialité de TikTok. Vos jetons OAuth TikTok sont chiffrés au repos via AES-256-GCM.
 - **Exigences légales** : lorsqu’une loi, un règlement ou une décision de justice valide impose la divulgation de données, ou lorsque celle-ci est nécessaire pour protéger les droits, la sécurité ou les biens d’OmniMux, de nos utilisateurs ou du public.
 - **Transferts d’activité** : si le service ou ses actifs sont transférés à un autre opérateur, les données peuvent être transférées dans le cadre de cette opération. Nous vous informerions avant que vos données ne soient soumises à une autre politique de confidentialité.
 
@@ -83,6 +86,7 @@ Lorsque des données quittent votre région, nous nous appuyons sur des garantie
 Nous ne conservons les données personnelles que le temps nécessaire aux fins décrites ci-dessus.
 
 - **Données de compte, de personnages et de contenu** : tant que votre compte reste ouvert. Vous pouvez supprimer vous-même un personnage, une vidéo ou l’ensemble de votre compte ; la suppression du compte supprime le compte et son contenu.
+- **Jetons OAuth TikTok et liaisons de compte** : conservés uniquement tant que votre compte TikTok reste connecté. Lorsque vous cliquez sur Déconnecter (Disconnect) dans OmniMux, nous révoquons immédiatement le jeton auprès de TikTok et supprimons les identifiants chiffrés ; vous pouvez également retirer l’accès d’OmniMux à tout moment dans l’application TikTok (Paramètres et confidentialité → Sécurité et autorisations → Autorisations des applications et services).
 - **Documents de paiement et de facturation** : pendant la durée imposée par les lois fiscales et comptables, éventuellement après la fermeture de votre compte.
 - **Journaux techniques** : pendant une courte période suffisante pour examiner les incidents et sécuriser le service, puis ils sont supprimés ou réduits à des statistiques agrégées.
 - **Sauvegardes** : les données supprimées peuvent subsister brièvement dans les sauvegardes jusqu’à leur remplacement dans le cycle de rotation.
@@ -167,6 +171,7 @@ OmniMux は、本ポリシーに記載する個人データの管理者です。
 - **プランとクレジット**：ご利用プラン、クレジット残高、クレジット履歴。
 - **支払い記録**：購入内容と購入日時。カード情報は決済事業者が取り扱い、OmniMux が閲覧することはありません。
 - **技術データ**：サービスの運営と安全確保に必要なログ。IP アドレス、ブラウザーや端末の情報、エラー報告、タイムスタンプなどが含まれます。
+- **連携した TikTok アカウントのデータ（任意）**：TikTok Login Kit を通じてご自身の TikTok アカウントを連携した場合、TikTok 識別子（open_id）、アバター画像、表示名、クリエイター公開設定、およびお客様の指示を実行するための OAuth アクセストークンとリフレッシュトークンを受け取ります。TikTok のパスワードを受け取ることは一切ありません。
 
 当社はお客様の個人データを販売せず、それを使った広告用プロフィールの作成も行いません。
 
@@ -185,6 +190,7 @@ OmniMux は、本ポリシーに記載する個人データの管理者です。
 当社は、以下の目的でお客様の個人データを利用します。各目的には法的根拠があります。
 
 - **サービスの提供（契約の履行）**：アカウントの作成と保護、キャラクターやアップロード素材の保存、AI モデル提供事業者での生成処理、クレジット残高の管理、およびご依頼のメディアの提供。これらのデータなしにサービスを提供することはできません。
+- **TikTok アカウントの連携と公開（契約の履行およびお客様の明示的な承認）**：連携済み TikTok アカウントの表示、公開可否設定（creator_info）の確認、およびお客様が選択した動画や画像投稿を TikTok Content Posting API 経由でご自身の TikTok プロフィールへアップロード・公開し、配信ステータスを確認するために利用します。お客様の明示的な操作なしに投稿や操作を行うことはありません。
 - **サービスの安全確保と不正利用の防止（正当な利益）**：詐欺、不正利用、禁止コンテンツの生成の試みの検出、[適正利用ポリシー](/acceptable-use)の実施、およびサービスと他のお客様の保護。当社は、これらの利益をお客様の権利や期待と比較衡量します。
 - **法的義務の遵守（法的義務）**：請求書、税務、会計記録の保存、および当局からの適法な要請への対応。
 - **製品情報やマーケティングメールの送信（同意）**：お客様が受信に同意した場合に限ります。メール内のリンク、または hello@omnimux.ai へのご連絡により、いつでも同意を撤回できます。その場合、マーケティングメールの送信を停止します。ただし、安全、請求、ポリシーに関する通知など、アカウントに必要なサービス連絡は引き続き送信する場合があります。
@@ -199,6 +205,7 @@ OmniMux は、本ポリシーに記載する個人データの管理者です。
   - ご依頼の画像や動画を生成する AI モデル提供事業者。
   - アカウントやサービスに関するメールを送信するメール配信事業者。
   - 支払いを処理し、カード情報を直接取り扱う決済事業者。
+- **お客様が連携した外部プラットフォーム（TikTok）**：TikTok アカウントを連携して投稿を送信すると、選択されたメディアと投稿設定が TikTok（および該当する場合は当社のソーシャル配信インフラ処理事業者）に送信され、TikTok 自身の規約とプライバシーポリシーに従って処理されます。TikTok OAuth トークンは AES-256-GCM で暗号化して保存されます。
 - **法的要請**：法律、規則、有効な法的命令により開示が義務づけられる場合、または OmniMux、お客様、公衆の権利、安全、財産の保護に開示が必要な場合。
 - **事業の譲渡**：サービスまたはその資産が別の運営者に移る場合、その取引の一環としてデータが移転することがあります。お客様のデータに別のプライバシーポリシーが適用される前に、その旨をお知らせします。
 
@@ -209,6 +216,7 @@ OmniMux は、本ポリシーに記載する個人データの管理者です。
 個人データは、上記の目的に必要な期間に限り保存します。
 
 - **アカウント、キャラクター、コンテンツのデータ**：アカウントが開設されている間。キャラクター、動画、アカウント全体をお客様ご自身で削除できます。アカウントを削除すると、アカウントとそのコンテンツが削除されます。
+- **TikTok OAuth トークンと連携記録**：TikTok アカウントが連携されている期間のみ保存します。OmniMux 内で連携解除（Disconnect）をクリックすると、直ちに TikTok 側でトークンを失効させ、保存された認証情報を消去します。また、TikTok アプリの「設定とプライバシー → セキュリティと権限 → アプリとサービスの権限」からいつでも OmniMux の権限を取り消すことができます。
 - **支払いと請求の記録**：税務・会計法令が求める期間。アカウント閉鎖後も保存が必要な場合があります。
 - **技術ログ**：問題の調査とサービスの安全確保に十分な短期間保存し、その後は削除するか集計統計に変換します。
 - **バックアップ**：削除したデータは、バックアップが順次入れ替わるまで、短期間バックアップ内に残ることがあります。
@@ -293,6 +301,7 @@ Chúng tôi thu thập các loại dữ liệu cá nhân sau:
 - **Gói và tín dụng**: gói của bạn, số dư tín dụng và lịch sử tín dụng.
 - **Hồ sơ thanh toán**: nội dung và thời điểm mua. Thông tin thẻ do nhà cung cấp thanh toán của chúng tôi xử lý và OmniMux không bao giờ nhìn thấy.
 - **Dữ liệu kỹ thuật**: nhật ký cần thiết để vận hành và bảo vệ dịch vụ, chẳng hạn địa chỉ IP, thông tin trình duyệt và thiết bị, báo cáo lỗi và dấu thời gian.
+- **Dữ liệu tài khoản TikTok đã liên kết (tùy chọn)**: khi bạn liên kết tài khoản TikTok qua TikTok Login Kit, chúng tôi nhận mã định danh TikTok (open_id), ảnh đại diện, tên hiển thị, cài đặt đăng bài của nhà sáng tạo cùng mã thông báo truy cập và làm mới OAuth để thực hiện theo đúng chỉ dẫn của bạn. Chúng tôi không bao giờ nhận mật khẩu TikTok của bạn.
 
 Chúng tôi không bán dữ liệu cá nhân của bạn và không dùng dữ liệu đó để xây dựng hồ sơ quảng cáo.
 
@@ -311,6 +320,7 @@ Bạn có thể tải lên ảnh và video có người thật; một số nội
 Chúng tôi sử dụng dữ liệu cá nhân của bạn cho các mục đích dưới đây. Mỗi mục đích đều có cơ sở pháp lý.
 
 - **Cung cấp dịch vụ (thực hiện hợp đồng)**: tạo và bảo vệ tài khoản, lưu nhân vật và nội dung tải lên, thực hiện việc tạo nội dung qua các nhà cung cấp mô hình AI, duy trì số dư tín dụng và cung cấp phương tiện bạn yêu cầu. Chúng tôi không thể cung cấp dịch vụ nếu thiếu dữ liệu này.
+- **Liên kết và đăng nội dung lên tài khoản TikTok của bạn (thực hiện hợp đồng và ủy quyền rõ ràng của bạn)**: hiển thị tài khoản TikTok đã liên kết, kiểm tra điều kiện đăng bài (creator_info), và tải lên hoặc xuất bản video, bài ảnh bạn chọn lên hồ sơ TikTok thông qua TikTok Content Posting API cũng như kiểm tra trạng thái đăng. Chúng tôi không bao giờ tự động đăng bài hoặc tương tác nếu không có thao tác của bạn.
 - **Giữ an toàn cho dịch vụ và ngăn lạm dụng (lợi ích hợp pháp)**: phát hiện gian lận, sử dụng sai mục đích và nỗ lực tạo nội dung bị cấm, thực thi [Chính sách sử dụng chấp nhận được](/acceptable-use), bảo vệ dịch vụ và người dùng khác. Chúng tôi cân nhắc những lợi ích này với quyền và kỳ vọng của bạn.
 - **Tuân thủ nghĩa vụ pháp lý (nghĩa vụ pháp lý)**: lưu hồ sơ hóa đơn, thuế và kế toán, đồng thời đáp ứng yêu cầu hợp pháp của cơ quan có thẩm quyền.
 - **Gửi email sản phẩm và tiếp thị (sự đồng ý)**: chỉ khi bạn đã chủ động đăng ký nhận. Bạn có thể rút lại sự đồng ý bất cứ lúc nào qua liên kết trong email hoặc bằng cách viết đến hello@omnimux.ai; chúng tôi sẽ dừng gửi email tiếp thị. Chúng tôi vẫn có thể gửi thông báo dịch vụ cần thiết cho tài khoản, như thông báo bảo mật, thanh toán và chính sách.
@@ -325,6 +335,7 @@ Chúng tôi không bán dữ liệu cá nhân của bạn và không chia sẻ v
   - các nhà cung cấp mô hình AI, tạo hình ảnh và video bạn yêu cầu;
   - nhà cung cấp email, gửi thư tài khoản và dịch vụ;
   - nhà cung cấp thanh toán, xử lý thanh toán và trực tiếp quản lý dữ liệu thẻ.
+- **Nền tảng bên thứ ba bạn liên kết (TikTok)**: khi bạn liên kết tài khoản TikTok và gửi bài đăng, phương tiện cùng cài đặt bài đăng bạn chọn sẽ được truyền tới TikTok (và đơn vị xử lý hạ tầng xuất bản mạng xã hội của chúng tôi khi áp dụng) theo điều khoản và chính sách quyền riêng tư của TikTok. Mã thông báo OAuth TikTok được mã hóa tĩnh bằng AES-256-GCM.
 - **Yêu cầu pháp lý**: khi luật, quy định hoặc lệnh pháp lý hợp lệ yêu cầu tiết lộ dữ liệu, hoặc việc tiết lộ cần thiết để bảo vệ quyền, sự an toàn hoặc tài sản của OmniMux, người dùng hay công chúng.
 - **Chuyển nhượng hoạt động kinh doanh**: nếu dịch vụ hoặc tài sản được chuyển sang đơn vị vận hành khác, dữ liệu có thể được chuyển giao như một phần của giao dịch. Chúng tôi sẽ thông báo trước khi dữ liệu của bạn chịu sự điều chỉnh của chính sách quyền riêng tư khác.
 
@@ -335,6 +346,7 @@ Khi dữ liệu rời khỏi khu vực của bạn, chúng tôi dựa vào các 
 Chúng tôi chỉ giữ dữ liệu cá nhân trong thời gian cần thiết cho các mục đích nêu trên.
 
 - **Dữ liệu tài khoản, nhân vật và nội dung**: trong thời gian tài khoản còn mở. Bạn có thể tự xóa một nhân vật, một video hoặc toàn bộ tài khoản; xóa tài khoản sẽ xóa tài khoản và nội dung của tài khoản đó.
+- **Mã thông báo OAuth TikTok và bản ghi liên kết**: chỉ lưu giữ trong thời gian tài khoản TikTok của bạn còn kết nối. Khi bạn nhấp Ngắt kết nối (Disconnect) trong OmniMux, chúng tôi lập tức thu hồi mã thông báo với TikTok và xóa thông tin xác thực đã lưu; bạn cũng có thể gỡ quyền OmniMux bất cứ lúc nào trong ứng dụng TikTok (Cài đặt và quyền riêng tư → Bảo mật và quyền → Quyền của ứng dụng và dịch vụ).
 - **Hồ sơ thanh toán và hóa đơn**: trong thời gian luật thuế và kế toán yêu cầu, có thể kéo dài sau khi đóng tài khoản.
 - **Nhật ký kỹ thuật**: trong một khoảng thời gian ngắn đủ để điều tra sự cố và giữ an toàn cho dịch vụ, sau đó xóa hoặc chuyển thành thống kê tổng hợp.
 - **Bản sao lưu**: dữ liệu đã xóa có thể còn tồn tại trong thời gian ngắn trong bản sao lưu cho đến khi các bản sao đó được thay thế theo chu kỳ.
@@ -419,6 +431,7 @@ OmniMux 是本政策所述個人資料的控管者。這表示由我們決定這
 - **方案與點數**：您的方案、點數餘額與點數紀錄。
 - **付款紀錄**：您購買了什麼、何時購買。卡片資料由我們的付款服務商處理，OmniMux 從不會看到。
 - **技術資料**：執行與保護服務所需的日誌，例如 IP 位址、瀏覽器與裝置資訊、錯誤報告與時間戳記。
+- **連結的 TikTok 帳號資料（選用）**：當您透過 TikTok Login Kit 授權連結自己的 TikTok 帳號時，我們會接收您的 TikTok 唯一識別碼（open_id）、頭像、顯示名稱、創作者發布權限狀態，以及用於依您指示執行操作的 OAuth 存取權杖與重新整理權杖。我們絕不會取得您的 TikTok 密碼。
 
 我們不會出售您的個人資料，也不會用於建立廣告輪廓。
 
@@ -437,6 +450,7 @@ OmniMux 是本政策所述個人資料的控管者。這表示由我們決定這
 我們基於下述目的使用您的個人資料，每個目的都有相應的法律依據。
 
 - **提供服務（履行契約）**：建立並保護您的帳號、儲存您的角色與上傳素材、透過我們的 AI 模型服務商執行生成、維護您的點數餘額，以及交付您所要求的媒體內容。沒有這些資料，我們無法提供服務。
+- **連結並發布內容至您的 TikTok 帳號（履行契約與您的明確授權）**：僅在您主動綁定或發起發布時，使用您的 TikTok 授權權杖顯示已綁定帳號、查詢創作者發布能力（creator_info），並透過 TikTok Content Posting API 將您指定的影片或圖文上傳或發布至您本人的 TikTok 帳號及查詢狀態。未經您的明確操作，我們絕不會自動發文或進行互動。
 - **維護服務安全、防止濫用（正當利益）**：偵測詐欺、濫用與生成違禁內容的嘗試，執行我們的[可接受使用政策](/acceptable-use)，以及保護本服務與其他使用者。我們會將這些利益與您的權利和期待相權衡。
 - **履行法律義務（法律義務）**：保存發票、稅務與會計紀錄，並回應主管機關的合法要求。
 - **向您發送產品與行銷郵件（同意）**：僅在您主動選擇接收時。您可隨時透過郵件中的連結或寫信至 hello@omnimux.ai 撤回同意，我們將停止發送行銷郵件。我們仍可能發送帳號所需的服務通知，例如安全、帳單與政策通知。
@@ -451,6 +465,7 @@ OmniMux 是本政策所述個人資料的控管者。這表示由我們決定這
   - 我們的 AI 模型服務商：生成您所要求的圖片與影片；
   - 我們的郵件服務商：發送帳號與服務郵件；
   - 我們的付款服務商：處理付款，並直接處理卡片資料。
+- **您主動授權的第三方社群平台（TikTok）**：當您使用 TikTok 帳號綁定與內容發布功能時，您選擇的媒體素材與發布設定會傳輸至 TikTok（及適用的社群發布基礎設施處理商）以完成您的請求。您的 TikTok OAuth 權杖在資料庫中全程採用 AES-256-GCM 加密儲存。
 - **法律要求**：法律、法規或有效法律命令要求我們揭露資料，或為保護 OmniMux、我們的使用者或公眾的權利、安全或財產而有必要揭露時。
 - **業務移轉**：如果本服務或其資產移轉至其他營運者，資料可能隨該交易一併移轉。在您的資料受另一份隱私權政策規範之前，我們會通知您。
 
@@ -461,6 +476,7 @@ OmniMux 是本政策所述個人資料的控管者。這表示由我們決定這
 我們僅在達成上述目的所需的期間內保留個人資料。
 
 - **帳號、角色與內容資料**：只要您的帳號仍開通。您可自行刪除某個角色、某部影片乃至整個帳號；刪除帳號會移除該帳號及其內容。
+- **TikTok 授權權杖與連結紀錄**：僅在您的 TikTok 帳號保持連結期間保留。當您在 OmniMux 點擊「中斷連結（Disconnect）」時，我們會立即向 TikTok 撤銷權杖並清除加密儲存的憑證；您也可隨時在 TikTok App「設定與隱私 → 安全與權限 → 應用程式與服務權限」中移除 OmniMux。
 - **付款與發票紀錄**：在稅務與會計法律要求的期間內保留，可能延續至您的帳號關閉之後。
 - **技術日誌**：短期保留，足以用於調查事件與維護服務安全，之後刪除或彙整為統計資料。
 - **備份**：已刪除的資料可能在備份中短暫留存，直到相關備份依輪替機制淘汰。

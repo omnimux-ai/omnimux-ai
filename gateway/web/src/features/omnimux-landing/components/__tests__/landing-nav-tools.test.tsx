@@ -53,7 +53,7 @@ function renderNav() {
 }
 
 describe('landing nav tools menu', () => {
-  it('groups the two tool pages under 创意 with names only', async () => {
+  it('groups the creative tool pages and the Agent entry pages by name only', async () => {
     renderNav()
     const trigger = screen.getByRole('button', { name: /工具/ })
     fireEvent.mouseDown(trigger, { button: 0 })
@@ -61,12 +61,27 @@ describe('landing nav tools menu', () => {
 
     const menu = await screen.findByRole('menu', {}, { timeout: 2000 })
     expect(within(menu).getByText('创意')).toBeInTheDocument()
+    expect(within(menu).getByText('Agent')).toBeInTheDocument()
     const video = within(menu).getByRole('link', { name: 'TikTok 视频下载' })
     const photo = within(menu).getByRole('link', { name: 'TikTok 图文下载' })
     expect(video).toHaveAttribute('href', '/zh/tools/tiktok-video-downloader')
     expect(photo).toHaveAttribute('href', '/zh/tools/tiktok-photo-downloader')
+    // The two Agent entry pages hang off the same menu.
+    expect(within(menu).getByRole('link', { name: 'CLI' })).toHaveAttribute(
+      'href',
+      '/zh/cli'
+    )
+    expect(within(menu).getByRole('link', { name: 'Skills' })).toHaveAttribute(
+      'href',
+      '/zh/skills'
+    )
     // Names only: no descriptions, and no "全部工具" entry (no such page).
     expect(within(menu).queryByText(/MP4|原图/)).toBeNull()
     expect(within(menu).queryByText(/全部工具/)).toBeNull()
+  })
+
+  it('no longer offers a For AI navigation entry', () => {
+    renderNav()
+    expect(screen.queryByRole('link', { name: 'For AI' })).toBeNull()
   })
 })

@@ -132,9 +132,13 @@ func TestRevoke(t *testing.T) {
 }
 
 func TestPublishVideoByURL(t *testing.T) {
+	var gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v2/post/publish/video/upload/", r.URL.Path)
+		assert.Equal(t, "/v2/post/publish/video/init/", r.URL.Path)
 		assert.Equal(t, "Bearer at-1", r.Header.Get("Authorization"))
+		buf := make([]byte, 4096)
+		n, _ := r.Body.Read(buf)
+		gotBody = string(buf[:n])
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":{"publish_id":"pub-1"}}`))
 	}))
@@ -143,6 +147,49 @@ func TestPublishVideoByURL(t *testing.T) {
 	res, err := c.PublishVideoByURL(context.Background(), "at-1", "hello", "https://cdn.example.com/v.mp4", "")
 	require.NoError(t, err)
 	assert.Equal(t, "pub-1", res.PublishID)
+	assert.Contains(t, gotBody, `"privacy_level":"SELF_ONLY"`)
+	assert.Contains(t, gotBody, `"video_url":"https://cdn.example.com/v.mp4"`)
+}
+
+func TestPublishWithOptionsMapsComplianceFields(t *testing.T) {
+	var gotVideoBody, gotPhotoBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 4096)
+		n, _ := r.Body.Read(buf)
+		if r.URL.Path == "/v2/post/publish/video/init/" {
+			gotVideoBody = string(buf[:n])
+		} else {
+			gotPhotoBody = string(buf[:n])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"publish_id":"pub-opt"}}`))
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL)
+	f := false
+	tr := true
+	opts := &PostOptions{
+		PrivacyLevel:       "PUBLIC_TO_EVERYONE",
+		DisableComment:     &f,
+		DisableDuet:        &tr,
+		DisableStitch:      &tr,
+		BrandContentToggle: &tr,
+		BrandOrganicToggle: &f,
+	}
+	_, err := c.PublishVideoByURLWithOptions(context.Background(), "at-1", "v title", "https://omnimux.ai/v.mp4", opts)
+	require.NoError(t, err)
+	assert.Contains(t, gotVideoBody, `"privacy_level":"PUBLIC_TO_EVERYONE"`)
+	assert.Contains(t, gotVideoBody, `"disable_comment":false`)
+	assert.Contains(t, gotVideoBody, `"disable_duet":true`)
+	assert.Contains(t, gotVideoBody, `"disable_stitch":true`)
+	assert.Contains(t, gotVideoBody, `"brand_content_toggle":true`)
+	assert.Contains(t, gotVideoBody, `"brand_organic_toggle":false`)
+
+	_, err = c.PublishPhotoByURLWithOptions(context.Background(), "at-1", "p title", []string{"https://omnimux.ai/p.jpg"}, opts)
+	require.NoError(t, err)
+	assert.Contains(t, gotPhotoBody, `"disable_comment":false`)
+	assert.NotContains(t, gotPhotoBody, `"disable_duet"`, "photo posts must not send duet/stitch flags")
+	assert.NotContains(t, gotPhotoBody, `"disable_stitch"`)
 }
 
 func TestGetPublishStatus(t *testing.T) {
@@ -160,11 +207,14 @@ func TestGetPublishStatus(t *testing.T) {
 func TestQueryCreatorInfo(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":{"creator_nickname":"n","creator_username":"u","privacy_level_options":["SELF_ONLY","FOLLOWER_OF_CREATOR"],"max_video_post_duration_sec":600}}`))
+		_, _ = w.Write([]byte(`{"data":{"creator_nickname":"n","creator_username":"u","privacy_level_options":["SELF_ONLY","FOLLOWER_OF_CREATOR"],"comment_disabled":false,"duet_disabled":true,"stitch_disabled":true,"max_video_post_duration_sec":600}}`))
 	}))
 	defer srv.Close()
 	c := NewClient(srv.URL)
 	info, err := c.QueryCreatorInfo(context.Background(), "at-1")
 	require.NoError(t, err)
 	assert.Equal(t, "u", info.CreatorUsername)
+	assert.False(t, info.CommentDisabled)
+	assert.True(t, info.DuetDisabled)
+	assert.True(t, info.StitchDisabled)
 }

@@ -57,10 +57,12 @@ func TestSocialProviderHTTPIsolation(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) { c.Set("id", 7); c.Next() })
 	router.GET("/accounts", SocialListAccounts)
+	router.GET("/accounts/:id/creator-info", SocialAccountCreatorInfo)
 	router.POST("/connect", SocialConnect)
 	router.DELETE("/accounts/:id", SocialDisconnectAccount)
 	router.POST("/posts", SocialCreatePost)
 	router.GET("/posts/:id", SocialGetPost)
+	router.GET("/public/media/:token", SocialPublicMediaProxy)
 
 	request := func(method, path, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -114,6 +116,10 @@ func TestSocialProviderHTTPIsolation(t *testing.T) {
 		{"GET", "/posts/1", "", "invalid-provider", 400},
 		{"DELETE", "/accounts/1?provider=tiktok_direct", "", "account-provider-mismatch", 409},
 		{"DELETE", "/accounts/2?provider=zernio", "", "account-provider-mismatch", 409},
+		{"GET", "/accounts/1/creator-info?provider=tiktok_direct", "", "account-provider-mismatch", 409},
+		{"GET", "/accounts/2/creator-info?provider=zernio", "", "account-provider-mismatch", 409},
+		{"GET", "/accounts/3/creator-info?provider=tiktok_direct", "", "SOCIAL_ACCOUNT_NOT_FOUND", 404},
+		{"GET", "/public/media/invalid-token", "", "SOCIAL_MEDIA_INVALID", 400},
 		{"GET", "/posts/1?provider=tiktok_direct", "", "post-provider-mismatch", 409},
 		{"POST", "/posts", `{"provider":"tiktok_direct","content":"test","account_ids":[1]}`, "account-provider-mismatch", 409},
 		{"POST", "/posts", `{"provider":"tiktok_direct","content":"test","account_ids":[2]}`, "post-provider-mismatch", 409},

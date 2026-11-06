@@ -36,17 +36,17 @@ import {
   rawQuotaToUsd,
   usdToCredits,
 } from '@/features/pricing/lib/credits'
-import {
-  getPublicPlans,
-  paySubscriptionStripe,
-} from '@/features/subscriptions/api'
-import { formatDuration } from '@/features/subscriptions/lib'
-import { planTierDisplayName } from '@/features/subscriptions/lib/plan-tier'
-import type {
-  PlanRecord,
-  SubscriptionPlan,
-} from '@/features/subscriptions/types'
+import { isApiSuccess, requestStripePayment } from '@/features/wallet/api'
+import { useTopupInfo } from '@/features/wallet/hooks/use-topup-info'
+import { calculatePresetPricing } from '@/features/wallet/lib/format'
+import type { PresetAmount } from '@/features/wallet/types'
+import { useStatus } from '@/hooks/use-status'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
+import {
+  formatCurrencyFromUSD,
+  formatLocalCurrencyAmount,
+} from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
@@ -70,132 +70,112 @@ interface Props {
   onSubscribed: () => void | Promise<void>
 }
 
-function isPurchasable(record: PlanRecord): boolean {
-  const plan = record?.plan
-  return (
-    Boolean(plan) && plan.enabled !== false && Boolean(plan.stripe_price_id)
-  )
+function formatPayAmount(amount: number): string {
+  return formatLocalCurrencyAmount(amount, {
+    abbreviate: false,
+    digitsLarge: 2,
+    digitsSmall: 2,
+  })
 }
 
-function planCreditsOf(plan: SubscriptionPlan): number {
-  return usdToCredits(rawQuotaToUsd(Number(plan.total_amount || 0)))
+function formatCreditAmount(amountUsd: number): string {
+  return formatCurrencyFromUSD(amountUsd, {
+    abbreviate: false,
+    digitsLarge: 0,
+    digitsSmall: 2,
+  })
 }
 
-function formatPrice(plan: SubscriptionPlan): string {
-  return `$${Number(plan.price_amount || 0).toFixed(2)}`
+interface Rung {
+  preset: PresetAmount
+  discount: number
+  pricing: ReturnType<typeof calculatePresetPricing>
 }
 
-/** Billing cadence, without repeating the reset period next to it. */
-function planPeriodLabel(plan: SubscriptionPlan, t: TFunction): string {
-  const unit = plan.duration_unit
-  const value = Number(plan.duration_value || 1)
-  if (value === 1 && unit === 'month') return t('Monthly')
-  if (value === 1 && unit === 'year') return t('Annual')
-  return formatDuration(plan, t)
-}
-
-/**
- * The plan worth showing first: a monthly plan with the best credits per unit
- * of price (annual records only when no monthly one exists). The database
- * title stays untouched; only the preselection is a product decision.
- */
-function defaultPlanId(plans: PlanRecord[]): number | null {
-  const monthly = plans.filter(
-    (record) =>
-      record.plan.duration_unit === 'month' &&
-      Number(record.plan.duration_value || 1) === 1
-  )
-  const pool = monthly.length > 0 ? monthly : plans
-  let best: PlanRecord | null = null
-  let bestRatio = -1
-  for (const record of pool) {
-    const price = Number(record.plan.price_amount || 0)
-    const credits = planCreditsOf(record.plan)
-    if (price <= 0 || credits <= 0) continue
-    const ratio = credits / price
-    if (ratio > bestRatio) {
-      bestRatio = ratio
-      best = record
-    }
-  }
-  return (best ?? plans[0])?.plan.id ?? null
-}
-
-function PlanRow(props: {
-  plan: SubscriptionPlan
-  selected: boolean
-  onSelect: () => void
-}) {
-  const { t } = useTranslation()
-  const plan = props.plan
-  return (
-    <button
-      type='button'
-      role='radio'
-      aria-checked={props.selected}
-      onClick={props.onSelect}
-      className={cn(
-        'flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-colors sm:gap-4 sm:px-5 sm:py-4',
-        props.selected
-          ? 'border-primary bg-primary/10'
-          : 'border-border bg-card/40 hover:bg-card/70'
-      )}
-    >
-      <span
-        aria-hidden='true'
-        className={cn(
-          'relative size-4 shrink-0 rounded-full border',
-          props.selected ? 'border-primary' : 'border-muted-foreground/50'
-        )}
-      >
-        {props.selected ? (
-          <span className='bg-primary absolute inset-1 rounded-full' />
-        ) : null}
-      </span>
-      <span className='flex min-w-0 flex-1 flex-col gap-1'>
-        <span className='text-sm font-semibold'>
-          {planTierDisplayName(plan, t, plan.title)}
-        </span>
-        <span className='text-muted-foreground text-xs'>
-          {formatCredits(planCreditsOf(plan))} {t('credits')} ·{' '}
-          {planPeriodLabel(plan, t)}
-        </span>
-      </span>
-      <span className='shrink-0 text-base font-semibold tabular-nums'>
-        {formatPrice(plan)}
-      </span>
-    </button>
-  )
-}
-
-/**
- * Full-screen subscription takeover shown when the account cannot pay for the
- * current generation. It is intentionally not the shared `Dialog`: a checkout
- * needs the whole viewport, its own step header and a receipt state, which the
- * centered dialog shell cannot express. Stripe is the only payment method the
- * site sells today, so it is stated rather than offered as a choice.
- */
 export function SubscribePaywall(props: Props) {
+  // Mount the dialog body only while open so useTopupInfo's always-on mount
+  // fetch stays gated behind `open` (the parent mounts this unconditionally).
+  if (!props.open) return null
+  return <PaywallDialog {...props} />
+}
+
+function PaywallDialog(props: Props) {
   const { t } = useTranslation()
-  const quota = useAuthStore((state) => state.auth.user?.quota ?? 0)
-  const setAuthUser = useAuthStore((state) => state.auth.setUser)
+  const quota = useAuthStore((s) => s.auth.user?.quota ?? 0)
+  const setAuthUser = useAuthStore((s) => s.auth.setUser)
+  const { status } = useStatus()
+  const { currency } = useSystemConfig()
+  const { topupInfo, presetAmounts, loading } = useTopupInfo()
+
   const quotaRef = useRef(quota)
   const panelRef = useRef<HTMLDivElement | null>(null)
-  const baselineRef = useRef(0)
+  const baselineRef = useRef(quota)
   const settledRef = useRef(false)
   const subscribedRef = useRef(props.onSubscribed)
-  const [plans, setPlans] = useState<PlanRecord[] | null>(null)
-  const [plansFailed, setPlansFailed] = useState(false)
-  const [planId, setPlanId] = useState<number | null>(null)
+
   const [phase, setPhase] = useState<Phase>('choose')
   const [paying, setPaying] = useState(false)
-  const [addedCredits, setAddedCredits] = useState(0)
+  const [addedCredits, setAddedCredits] = useState<number | null>(null)
+  const [selectedUsd, setSelectedUsd] = useState<number | null>(null)
 
-  const balanceCredits = formatCredits(usdToCredits(rawQuotaToUsd(quota)))
-  const requiredLabel =
-    props.requiredCredits === null ? null : formatCredits(props.requiredCredits)
+  const balanceCredits = useMemo(
+    () => formatCredits(usdToCredits(rawQuotaToUsd(quota))),
+    [quota],
+  )
+  const requiredLabel = useMemo(
+    () =>
+      props.requiredCredits !== null
+        ? formatCredits(props.requiredCredits)
+        : null,
+    [props.requiredCredits],
+  )
   const isVideo = props.origin === 'video'
-  const requestClose = props.onClose
+
+  const priceRatio =
+    typeof status?.price === 'number' && status.price > 0 ? status.price : 1
+  const usdExchangeRate = useMemo(() => {
+    const displayType = currency?.quotaDisplayType
+    if (displayType === 'USD') return 1
+    if (displayType === 'CUSTOM') {
+      const rate = currency?.customCurrencyExchangeRate
+      return rate && rate > 0 ? rate : 1
+    }
+    return currency?.usdExchangeRate && currency.usdExchangeRate > 0
+      ? currency.usdExchangeRate
+      : 1
+  }, [
+    currency?.quotaDisplayType,
+    currency?.usdExchangeRate,
+    currency?.customCurrencyExchangeRate,
+  ])
+
+  const rungs = useMemo<Rung[]>(() => {
+    if (!presetAmounts || presetAmounts.length === 0) return []
+    return presetAmounts.map((preset) => {
+      const discount =
+        preset.discount || topupInfo?.discount?.[preset.value] || 1.0
+      const pricing = calculatePresetPricing(
+        preset.value,
+        priceRatio,
+        discount,
+        usdExchangeRate,
+      )
+      return { preset, discount, pricing }
+    })
+  }, [presetAmounts, topupInfo?.discount, priceRatio, usdExchangeRate])
+
+  const stripeEnabled = !!topupInfo?.enable_stripe_topup
+
+  // Default-select the smallest rung that covers the credit gap; fall back to
+  // the smallest rung when nothing covers it or required is unknown.
+  useEffect(() => {
+    if (rungs.length === 0 || selectedUsd !== null) return
+    const needCredits = props.requiredCredits ?? 0
+    const covering = rungs.find(
+      (r) => usdToCredits(r.preset.value) >= needCredits,
+    )
+    setSelectedUsd((covering ?? rungs[0]).preset.value)
+  }, [rungs, props.requiredCredits, selectedUsd])
 
   useEffect(() => {
     quotaRef.current = quota
@@ -205,139 +185,116 @@ export function SubscribePaywall(props: Props) {
     subscribedRef.current = props.onSubscribed
   }, [props.onSubscribed])
 
-  const refreshQuota = useCallback(async (): Promise<number> => {
+  const refreshQuota = useCallback(async () => {
     try {
-      const res = (await getSelf()) as { success?: boolean; data?: AuthUser }
-      if (res?.success && res.data) {
-        setAuthUser(res.data)
-        return res.data.quota ?? 0
+      const res = await getSelf()
+      if (res && typeof res === 'object' && 'quota' in res) {
+        const next = Number((res as AuthUser).quota)
+        setAuthUser(res as AuthUser)
+        quotaRef.current = next
+        return next
       }
     } catch {
-      // A failed refresh keeps the last known balance; polling retries it.
+      // polling is best-effort
     }
-    return quotaRef.current
+    return null
   }, [setAuthUser])
 
-  // Opening resets the flow and pins the balance the payment is measured against.
+  // One-shot open: pin the quota baseline and refresh it.
   useEffect(() => {
-    if (!props.open) return
-    setPhase('choose')
-    setPaying(false)
-    setAddedCredits(0)
-    setPlans(null)
-    setPlansFailed(false)
-    settledRef.current = false
     baselineRef.current = quotaRef.current
     void refreshQuota().then((next) => {
-      baselineRef.current = Math.max(baselineRef.current, next)
+      if (next !== null) baselineRef.current = next
     })
-  }, [props.open, refreshQuota])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
+  // Escape / focus management.
+  const onClose = props.onClose
   useEffect(() => {
-    if (!props.open) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const res = await getPublicPlans()
-        if (cancelled) return
-        const available = Array.isArray(res.data) ? res.data : []
-        const purchasable = available.filter(isPurchasable)
-        setPlans(purchasable)
-        setPlanId(defaultPlanId(purchasable))
-      } catch (error) {
-        if (cancelled) return
-        setPlansFailed(true)
-        setPlans([])
-        toastInfluencerError(t, error, 'Something went wrong!')
-      }
-    })()
-    return () => {
-      cancelled = true
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
     }
-  }, [props.open, t])
-
-  useEffect(() => {
-    if (!props.open) return
+    document.addEventListener('keydown', onKey)
     panelRef.current?.focus()
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') requestClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [props.open, requestClose])
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
-  // The caller resumes exactly once, whether by the timer or the button.
+  // After a successful top-up, resume the pending generation once.
   useEffect(() => {
     if (phase !== 'success' || settledRef.current) return
     settledRef.current = true
-    const timer = setTimeout(() => {
-      void subscribedRef.current()
-    }, RESUME_DELAY_MS)
-    return () => clearTimeout(timer)
+    const timer = window.setTimeout(
+      () => subscribedRef.current(),
+      RESUME_DELAY_MS,
+    )
+    return () => window.clearTimeout(timer)
   }, [phase])
 
-  const selectedPlan = useMemo(
-    () => plans?.find((record) => record.plan.id === planId)?.plan ?? null,
-    [plans, planId]
-  )
-
-  const detectPayment = useCallback(async (): Promise<boolean> => {
+  const detectPayment = useCallback(async () => {
     const next = await refreshQuota()
-    if (next <= baselineRef.current) return false
-    setAddedCredits(usdToCredits(rawQuotaToUsd(next - baselineRef.current)))
-    setPhase('success')
-    return true
+    if (next !== null && next > baselineRef.current) {
+      setAddedCredits(usdToCredits(rawQuotaToUsd(next - baselineRef.current)))
+      setPhase('success')
+      return true
+    }
+    return false
   }, [refreshQuota])
 
-  // Poll while Stripe's hosted checkout (or the Wallet top-up page) is open.
+  // Poll balance growth while the Stripe tab is open.
   useEffect(() => {
-    if (!props.open || phase !== 'awaiting') return
+    if (phase !== 'awaiting') return
     const startedAt = Date.now()
-    let stopped = false
-    let timer: ReturnType<typeof setInterval> | null = null
-    const check = async () => {
-      if (stopped) return
-      const paid = await detectPayment()
-      if (paid) stopped = true
+    let intervalId: number | null = null
+    const stop = () => {
+      if (intervalId !== null) window.clearInterval(intervalId)
+      intervalId = null
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onFocus)
     }
-    timer = setInterval(() => {
+    const tick = async () => {
       if (Date.now() - startedAt > POLL_LIMIT_MS) {
-        if (timer) clearInterval(timer)
+        stop()
         return
       }
-      if (document.visibilityState === 'visible') void check()
-    }, POLL_MS)
-    const onReturn = () => {
-      if (document.visibilityState === 'visible') void check()
+      const paid = await detectPayment()
+      if (paid) stop()
     }
-    window.addEventListener('focus', onReturn)
-    document.addEventListener('visibilitychange', onReturn)
-    return () => {
-      stopped = true
-      if (timer) clearInterval(timer)
-      window.removeEventListener('focus', onReturn)
-      document.removeEventListener('visibilitychange', onReturn)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void tick()
     }
-  }, [props.open, phase, detectPayment])
+    const onFocus = () => void tick()
+    intervalId = window.setInterval(() => void tick(), POLL_MS)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onFocus)
+    void tick()
+    return stop
+  }, [phase, detectPayment])
 
   const startPayment = useCallback(async () => {
-    if (!selectedPlan || paying) return
+    if (selectedUsd === null || paying) return
     setPaying(true)
     try {
-      const res = await paySubscriptionStripe({ plan_id: selectedPlan.id })
-      if (res.message === 'success' && res.data?.pay_link) {
-        window.open(res.data.pay_link, '_blank', 'noopener')
+      const response = await requestStripePayment({
+        amount: Math.floor(selectedUsd),
+        payment_method: 'stripe',
+      })
+      const payLink = isApiSuccess(response)
+        ? response.data?.pay_link
+        : undefined
+      if (payLink) {
+        window.open(payLink, '_blank', 'noopener')
         setPhase('awaiting')
         toast.success(t('Payment page opened'))
       } else {
-        toastInfluencerError(t, res, 'Payment request failed')
+        toastInfluencerError(t, undefined, 'Payment request failed')
       }
     } catch (error) {
       toastInfluencerError(t, error, 'Payment request failed')
     } finally {
       setPaying(false)
     }
-  }, [selectedPlan, paying, t])
+  }, [selectedUsd, paying, t])
 
   const openWalletTopUp = useCallback(() => {
     window.open('/wallet', '_blank', 'noopener')
@@ -349,323 +306,469 @@ export function SubscribePaywall(props: Props) {
     if (!paid) toast.info(t('Payment not completed yet'))
   }, [detectPayment, t])
 
-  if (!props.open) return null
-
-  const showFallback = plans !== null && plans.length === 0
-  let payLabel = t('Choose a plan')
-  if (phase === 'awaiting') {
-    payLabel = t('Waiting for payment…')
-  } else if (selectedPlan) {
-    payLabel = t('Pay {{price}} · Subscribe to {{plan}}', {
-      price: formatPrice(selectedPlan),
-      plan: planTierDisplayName(selectedPlan, t, selectedPlan.title),
-    })
-  }
+  const showFallback = !loading && (!stripeEnabled || rungs.length === 0)
+  const selected = rungs.find((r) => r.preset.value === selectedUsd) ?? null
+  const payLabel = selected
+    ? t('Pay {{price}} with Stripe', {
+        price: formatPayAmount(selected.pricing.actualPrice),
+      })
+    : t('Pay with Stripe')
 
   return (
     <div
-      ref={panelRef}
-      tabIndex={-1}
-      className='bg-background text-foreground fixed inset-0 z-[100] flex flex-col overflow-y-auto outline-none'
+      className='fixed inset-0 z-[95] flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-[2px] sm:p-6'
       role='dialog'
       aria-modal='true'
       aria-labelledby='subscribe-paywall-title'
     >
-      <header className='border-border/70 bg-background/90 sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b px-4 backdrop-blur sm:h-16 sm:gap-4 sm:px-7'>
-        <span className='text-base font-bold tracking-tight sm:text-lg'>
-          OmniMux
-        </span>
-        <span className='border-border text-muted-foreground hidden border-l pl-4 text-xs sm:inline'>
-          {t('Subscription')}
-        </span>
-        <ol className='text-muted-foreground ml-2 hidden items-center gap-4 text-[11px] md:flex'>
-          <Step
-            index={1}
-            active={phase === 'choose'}
-            label={t('Choose a plan')}
-          />
-          <Step index={2} active={phase === 'awaiting'} label={t('Payment')} />
-          <Step
-            index={3}
-            active={phase === 'success'}
-            label={t('Continue generating')}
-          />
-        </ol>
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          className='ml-auto rounded-full'
-          onClick={props.onClose}
-        >
-          <ArrowLeft className='size-4' aria-hidden='true' />
-          {t('Back to editor')}
-        </Button>
-      </header>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className='max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-border bg-card shadow-2xl outline-none'
+      >
+        <Header t={t} phase={phase} onClose={props.onClose} />
 
-      <div className='flex flex-1 items-center justify-center px-4 py-8 sm:px-7 sm:py-12'>
         {phase === 'success' ? (
-          <div className='flex w-full max-w-md flex-col items-center text-center'>
-            <div className='bg-primary/15 text-primary flex size-16 items-center justify-center rounded-full'>
-              <Check className='size-7' aria-hidden='true' />
-            </div>
-            <h1
-              id='subscribe-paywall-title'
-              className='mt-4 text-2xl font-semibold tracking-tight sm:text-3xl'
-            >
-              {t('Subscription active')}
-            </h1>
-            <p className='text-muted-foreground mt-3 text-sm leading-relaxed'>
-              {t(
-                '{{credits}} credits were added to your balance. Resuming this generation…',
-                { credits: formatCredits(addedCredits) }
-              )}
-            </p>
-            <dl className='border-border bg-card/40 mt-6 w-full rounded-2xl border px-5 py-1 text-left'>
-              <ReceiptRow label={t('Plan')}>
-                {selectedPlan
-                  ? planTierDisplayName(selectedPlan, t, selectedPlan.title)
-                  : t('Subscription')}
-              </ReceiptRow>
-              <ReceiptRow label={t('Credits added')}>
-                {formatCredits(addedCredits)}
-              </ReceiptRow>
-              <ReceiptRow label={t('Payment method')} last>
-                Stripe
-              </ReceiptRow>
-            </dl>
-            <Button
-              type='button'
-              className='bg-foreground text-background hover:bg-foreground/90 mt-6 h-12 w-full max-w-xs rounded-full'
-              onClick={() => void subscribedRef.current()}
-            >
-              {t('Continue generating')}
-            </Button>
-          </div>
+          <SuccessBody
+            t={t}
+            selected={selected}
+            addedCredits={addedCredits}
+            onDone={() => subscribedRef.current()}
+          />
         ) : (
-          <div className='grid w-full max-w-5xl items-start gap-8 md:grid-cols-2 md:gap-12 md:pt-4'>
-            <section className='order-2 md:order-1'>
-              <span className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
-                {t('Continue generating')}
-              </span>
-              <h1
-                id='subscribe-paywall-title'
-                className='mt-2 text-3xl leading-tight font-semibold tracking-tight sm:text-4xl'
-              >
-                {t('Subscribe to continue this generation')}
-              </h1>
-              <p className='text-muted-foreground mt-4 text-sm leading-relaxed'>
-                {props.requiredCredits === null
-                  ? t(
-                      'Your balance is {{balance}} credits. Subscribe and this generation continues automatically.',
-                      { balance: balanceCredits }
-                    )
-                  : t(
-                      'This generation needs {{required}} credits and your balance is {{balance}}. Subscribe and this generation continues automatically.',
-                      { required: requiredLabel, balance: balanceCredits }
-                    )}
-              </p>
-              <div className='border-border bg-card/40 mt-6 flex items-center justify-between gap-4 rounded-xl border px-4 py-3 text-xs'>
-                <span className='text-muted-foreground'>
-                  {props.requiredCredits === null
-                    ? t('Balance')
-                    : t('Credits needed')}
-                </span>
-                <span className='flex items-center gap-3 font-semibold tabular-nums'>
-                  {requiredLabel ? (
-                    <span className='text-muted-foreground decoration-destructive/60 line-through'>
-                      {requiredLabel}
-                    </span>
-                  ) : null}
-                  <span>{balanceCredits}</span>
-                  <span className='text-muted-foreground font-normal'>
-                    {t('credits')}
-                  </span>
-                </span>
-              </div>
-              {props.modelName ? (
-                <p className='text-muted-foreground mt-3 text-xs'>
-                  {t('Model')}:{' '}
-                  <span className='text-foreground'>{props.modelName}</span>
-                  {isVideo ? ` · ${t('Video')}` : ''}
-                </p>
-              ) : null}
-              <ul className='text-muted-foreground mt-6 space-y-2.5 text-xs'>
-                <Benefit>
-                  {t(
-                    'Credits are added immediately and usable for this generation'
-                  )}
-                </Benefit>
-                <Benefit>
-                  {t('Generation resumes automatically after payment')}
-                </Benefit>
-                <Benefit>
-                  {t('Your character settings are kept while you pay')}
-                </Benefit>
-              </ul>
-            </section>
-
-            <section className='order-1 md:order-2'>
-              {plans === null && (
-                <div className='flex items-center justify-center gap-2 py-20 text-sm'>
-                  <Spinner />
-                  <span className='text-muted-foreground'>{t('Loading')}</span>
-                </div>
-              )}
-              {plans !== null && showFallback && (
-                <div className='flex flex-col gap-4'>
-                  <h2 className='text-lg font-semibold'>
-                    {t('No subscription plans available')}
-                  </h2>
-                  <p className='text-muted-foreground text-sm leading-relaxed'>
-                    {t(
-                      'This site does not sell subscription plans right now. Add credits in Wallet and come back to continue.'
-                    )}
-                  </p>
-                  {plansFailed ? (
-                    <p className='text-muted-foreground text-xs'>
-                      {t('Could not load plans')}
-                    </p>
-                  ) : null}
-                  <Button
-                    type='button'
-                    className='bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full'
-                    onClick={openWalletTopUp}
-                  >
-                    {t('Add credits in Wallet')}
-                  </Button>
-                </div>
-              )}
-              {plans !== null && !showFallback && (
-                <div className='flex flex-col'>
-                  <h2 className='text-lg font-semibold'>
-                    {t('Choose a plan')}
-                  </h2>
-                  <p className='text-muted-foreground mt-1.5 mb-4 text-xs'>
-                    {t(
-                      'Plans grant credits every period. Manage or cancel anytime in Wallet.'
-                    )}
-                  </p>
-                  <div
-                    className='flex flex-col gap-2.5'
-                    role='radiogroup'
-                    aria-label={t('Subscription plans')}
-                  >
-                    {plans?.map((record) => (
-                      <PlanRow
-                        key={record.plan.id}
-                        plan={record.plan}
-                        selected={record.plan.id === planId}
-                        onSelect={() => setPlanId(record.plan.id)}
-                      />
-                    ))}
-                  </div>
-                  <div className='border-border bg-card/40 text-muted-foreground mt-4 mb-4 flex items-center gap-2.5 rounded-xl border px-4 py-2.5 text-xs'>
-                    <CreditCard
-                      className='size-4 shrink-0'
-                      aria-hidden='true'
-                    />
-                    <span>{t('Payment method')}</span>
-                    <span className='text-foreground font-semibold'>
-                      Stripe
-                    </span>
-                    <span className='ml-auto flex items-center gap-1'>
-                      <Lock className='size-3' aria-hidden='true' />
-                      {t('Secure payment')}
-                    </span>
-                  </div>
-                  <Button
-                    type='button'
-                    className='bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full'
-                    disabled={!selectedPlan || paying || phase === 'awaiting'}
-                    aria-busy={paying}
-                    onClick={() => void startPayment()}
-                  >
-                    {paying || phase === 'awaiting' ? <Spinner /> : null}
-                    {payLabel}
-                  </Button>
-                  {phase === 'awaiting' ? (
-                    <div className='mt-3 flex flex-col items-center gap-2 text-center'>
-                      <p className='text-muted-foreground text-xs'>
-                        {t(
-                          'Complete the payment in the new tab. This page continues automatically.'
-                        )}
-                      </p>
-                      <button
-                        type='button'
-                        className='text-primary text-xs underline underline-offset-4'
-                        onClick={() => void checkManually()}
-                      >
-                        {t('I have completed the payment')}
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type='button'
-                      className='text-muted-foreground hover:text-foreground mt-3 text-center text-xs underline underline-offset-4'
-                      onClick={props.onClose}
-                    >
-                      {t('Not now, back to editor')}
-                    </button>
-                  )}
-                </div>
-              )}
-            </section>
-          </div>
+          <ChooseBody
+            t={t}
+            balanceCredits={balanceCredits}
+            requiredLabel={requiredLabel}
+            modelName={props.modelName ?? null}
+            isVideo={isVideo}
+            loading={loading}
+            showFallback={showFallback}
+            rungs={rungs}
+            selectedUsd={selectedUsd}
+            onSelectUsd={setSelectedUsd}
+            paying={paying}
+            awaiting={phase === 'awaiting'}
+            payLabel={payLabel}
+            canPay={!!selected && !paying}
+            onPay={() => void startPayment()}
+            onWalletTopUp={openWalletTopUp}
+            onCheckManually={() => void checkManually()}
+            onClose={props.onClose}
+          />
         )}
+
+        <div className='border-t border-border px-6 py-3.5 text-center text-[11px] text-muted-foreground'>
+          {t('Payment is processed by Stripe.')}
+        </div>
       </div>
-
-      <footer className='border-border/70 text-muted-foreground shrink-0 border-t px-4 py-3 text-center text-[11px] sm:px-7'>
-        {t(
-          'Subscriptions can be managed or cancelled in Wallet. Payment is processed by Stripe.'
-        )}
-      </footer>
     </div>
   )
 }
 
-function Step(props: { index: number; active: boolean; label: string }) {
+function Header({
+  t,
+  phase,
+  onClose,
+}: {
+  t: TFunction
+  phase: Phase
+  onClose: () => void
+}) {
+  return (
+    <div className='flex items-center gap-3 border-b border-border px-5 py-3.5 sm:px-6'>
+      <div className='flex items-center gap-2 font-semibold tracking-tight'>
+        <span className='grid h-5 w-5 place-items-center rounded-full bg-foreground text-[10px] font-bold text-background'>
+          O
+        </span>
+        OmniMux
+      </div>
+      <span className='rounded-full border border-border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground'>
+        {t('Top up')}
+      </span>
+      <ol className='ml-auto hidden items-center gap-4 sm:flex'>
+        <Step index={1} label={t('Choose an amount')} active={phase === 'choose'} />
+        <Step index={2} label={t('Payment')} active={phase === 'awaiting'} />
+        <Step index={3} label={t('Continue generating')} active={phase === 'success'} />
+      </ol>
+      <button
+        type='button'
+        onClick={onClose}
+        className='ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:ml-4'
+      >
+        <ArrowLeft className='h-3.5 w-3.5' />
+        {t('Back to editor')}
+      </button>
+    </div>
+  )
+}
+
+type PaywallBodyProps = {
+  t: TFunction
+  balanceCredits: string
+  requiredLabel: string | null
+  modelName: string | null
+  isVideo: boolean
+  loading: boolean
+  showFallback: boolean
+  rungs: Rung[]
+  selectedUsd: number | null
+  onSelectUsd: (v: number) => void
+  paying: boolean
+  awaiting: boolean
+  payLabel: string
+  canPay: boolean
+  onPay: () => void
+  onWalletTopUp: () => void
+  onCheckManually: () => void
+  onClose: () => void
+}
+
+function ChooseBody(props: PaywallBodyProps) {
+  const { t } = props
+  return (
+    <div className='px-6 pb-6 pt-6 sm:px-8'>
+      <p className='text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground'>
+        {t('Continue generating')}
+      </p>
+      <h2
+        id='subscribe-paywall-title'
+        className='mt-2 text-xl font-semibold leading-snug tracking-tight sm:text-2xl'
+      >
+        {t('Top up to continue this generation')}
+      </h2>
+
+      <div className='mt-4 flex flex-wrap items-center gap-2'>
+        <span className='inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs'>
+          {t('Balance')}
+          <b className='tabular-nums'>{props.balanceCredits}</b>
+        </span>
+        {props.requiredLabel ? (
+          <span className='inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200'>
+            {t('Credits needed')}
+            <b className='tabular-nums'>{props.requiredLabel}</b>
+          </span>
+        ) : null}
+      </div>
+
+      {props.modelName ? (
+        <p className='mt-3 text-xs text-muted-foreground'>
+          {t('Model')}{' '}
+          <b className='font-semibold text-foreground'>{props.modelName}</b>
+          {' · '}
+          {props.isVideo ? t('Video') : t('Image')}
+        </p>
+      ) : null}
+
+      <div className='mt-6 border-t border-border pt-5'>
+        {renderPaywallBody(props, t)}
+      </div>
+    </div>
+  )
+}
+
+function renderPaywallBody(props: PaywallBodyProps, t: TFunction) {
+  if (props.loading) {
+    return (
+      <div className='flex items-center justify-center py-14'>
+        <Spinner className='h-6 w-6' />
+      </div>
+    )
+  }
+  if (props.showFallback) {
+    return (
+      <FallbackBody
+        t={t}
+        onWalletTopUp={props.onWalletTopUp}
+        onCheckManually={props.onCheckManually}
+        onClose={props.onClose}
+      />
+    )
+  }
+  return (
+    <LadderBody
+      t={t}
+      rungs={props.rungs}
+      selectedUsd={props.selectedUsd}
+      onSelectUsd={props.onSelectUsd}
+      paying={props.paying}
+      awaiting={props.awaiting}
+      payLabel={props.payLabel}
+      canPay={props.canPay}
+      onPay={props.onPay}
+      onCheckManually={props.onCheckManually}
+      onClose={props.onClose}
+    />
+  )
+}
+
+function FallbackBody({
+  t,
+  onWalletTopUp,
+  onCheckManually,
+  onClose,
+}: {
+  t: TFunction
+  onWalletTopUp: () => void
+  onCheckManually: () => void
+  onClose: () => void
+}) {
+  return (
+    <div>
+      <h3 className='text-base font-semibold'>{t('Top up in Wallet')}</h3>
+      <p className='mt-1.5 text-sm text-muted-foreground'>
+        {t('Add credits in Wallet and come back to continue.')}
+      </p>
+      <Button
+        type='button'
+        onClick={onWalletTopUp}
+        className='mt-5 w-full rounded-full'
+      >
+        {t('Add credits in Wallet')}
+      </Button>
+      <button
+        type='button'
+        onClick={onCheckManually}
+        className='mt-2 w-full rounded-full px-3 py-2 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground'
+      >
+        {t('I have completed the payment')}
+      </button>
+      <button
+        type='button'
+        onClick={onClose}
+        className='mt-1 w-full rounded-full px-3 py-2 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground'
+      >
+        {t('Not now, back to editor')}
+      </button>
+    </div>
+  )
+}
+
+function LadderBody({
+  t,
+  rungs,
+  selectedUsd,
+  onSelectUsd,
+  paying,
+  awaiting,
+  payLabel,
+  canPay,
+  onPay,
+  onCheckManually,
+  onClose,
+}: {
+  t: TFunction
+  rungs: Rung[]
+  selectedUsd: number | null
+  onSelectUsd: (v: number) => void
+  paying: boolean
+  awaiting: boolean
+  payLabel: string
+  canPay: boolean
+  onPay: () => void
+  onCheckManually: () => void
+  onClose: () => void
+}) {
+  return (
+    <div>
+      <p className='text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground'>
+        {t('Select an amount')}
+      </p>
+      <div className='mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3'>
+        {rungs.map(({ preset, discount, pricing }) => {
+          const isSelected = preset.value === selectedUsd
+          const offPercent = pricing.hasDiscount
+            ? Math.round((1 - discount) * 100)
+            : 0
+          return (
+            <button
+              key={preset.value}
+              type='button'
+              aria-pressed={isSelected}
+              aria-label={
+                pricing.hasDiscount
+                  ? t('{{price}} top-up, get {{credits}}, save {{saved}}', {
+                      price: formatPayAmount(pricing.actualPrice),
+                      credits: formatCreditAmount(preset.value),
+                      saved: formatPayAmount(pricing.savedAmount),
+                    })
+                  : t('{{price}} top-up, get {{credits}}', {
+                      price: formatPayAmount(pricing.actualPrice),
+                      credits: formatCreditAmount(preset.value),
+                    })
+              }
+              onClick={() => onSelectUsd(preset.value)}
+              className={cn(
+                'relative flex min-h-[4.5rem] flex-col items-start rounded-lg border px-3 py-2.5 text-left transition-colors',
+                isSelected
+                  ? 'border-foreground bg-foreground/5 ring-1 ring-foreground/20'
+                  : 'border-border hover:border-foreground/40',
+              )}
+            >
+              {isSelected ? (
+                <span className='absolute right-2 top-2 grid h-3.5 w-3.5 place-items-center rounded-full bg-foreground text-background'>
+                  <Check className='h-2.5 w-2.5' />
+                </span>
+              ) : null}
+              <span className='flex items-baseline gap-1'>
+                <span className='text-base font-semibold tabular-nums sm:text-lg'>
+                  {formatPayAmount(pricing.actualPrice)}
+                </span>
+                {pricing.hasDiscount ? (
+                  <span className='text-[10px] font-semibold text-emerald-600'>
+                    {t('{{off}}% OFF', { off: offPercent })}
+                  </span>
+                ) : null}
+              </span>
+              <span className='mt-1.5 text-xs text-muted-foreground'>
+                {t('Get {{amount}}', {
+                  amount: formatCreditAmount(preset.value),
+                })}
+                {pricing.hasDiscount ? (
+                  <em className='text-emerald-600 not-italic'>
+                    {' · '}
+                    {t('Save {{amount}}', {
+                      amount: formatPayAmount(pricing.savedAmount),
+                    })}
+                  </em>
+                ) : null}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className='mt-5 flex items-center gap-3 text-xs text-muted-foreground'>
+        <CreditCard className='h-4 w-4' />
+        <span>{t('Payment method')}</span>
+        <b className='font-semibold text-foreground'>Stripe</b>
+        <span className='h-px flex-1 bg-border' />
+        <Lock className='h-3.5 w-3.5' />
+        <span>{t('Secure payment')}</span>
+      </div>
+
+      <Button
+        type='button'
+        disabled={!canPay || awaiting}
+        aria-busy={paying}
+        onClick={onPay}
+        className='mt-4 w-full rounded-full'
+      >
+        {paying ? <Spinner className='mr-2 h-4 w-4' /> : null}
+        {paying ? t('Opening Stripe…') : payLabel}
+      </Button>
+
+      {awaiting ? (
+        <div className='mt-4 flex items-start gap-3 rounded-xl border border-dashed border-border p-3.5 text-sm text-muted-foreground'>
+          <Spinner className='mt-0.5 h-4 w-4 flex-none' />
+          <div>
+            {t(
+              'Complete the payment in the new tab. This page continues automatically.',
+            )}
+            <button
+              type='button'
+              onClick={onCheckManually}
+              className='ml-1.5 font-semibold text-foreground underline underline-offset-4'
+            >
+              {t('I have completed the payment')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type='button'
+          onClick={onClose}
+          className='mt-3 w-full rounded-full px-3 py-2 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground'
+        >
+          {t('Not now, back to editor')}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function SuccessBody({
+  t,
+  selected,
+  addedCredits,
+  onDone,
+}: {
+  t: TFunction
+  selected: Rung | null
+  addedCredits: number | null
+  onDone: () => void
+}) {
+  return (
+    <div className='px-6 py-10 text-center sm:px-10'>
+      <div className='mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-600 text-white'>
+        <Check className='h-6 w-6' />
+      </div>
+      <h2 className='mt-5 text-xl font-semibold tracking-tight'>
+        {t('Top up successful')}
+      </h2>
+      <p className='mx-auto mt-2 max-w-md text-sm text-muted-foreground'>
+        {t('Your credits are ready — generation resumes automatically.')}
+      </p>
+      <dl className='mx-auto mt-6 grid max-w-xs gap-2 text-left text-sm'>
+        <ReceiptRow
+          label={t('Top up')}
+          value={selected ? formatPayAmount(selected.pricing.actualPrice) : '—'}
+        />
+        <ReceiptRow
+          label={t('Credits added')}
+          value={
+            addedCredits !== null ? `+${formatCredits(addedCredits)}` : '—'
+          }
+        />
+        <ReceiptRow label={t('Payment method')} value='Stripe' />
+      </dl>
+      <Button
+        type='button'
+        onClick={onDone}
+        className='mt-7 w-full max-w-xs rounded-full'
+      >
+        {t('Continue generating')}
+      </Button>
+    </div>
+  )
+}
+
+function Step({
+  index,
+  label,
+  active,
+}: {
+  index: number
+  label: string
+  active: boolean
+}) {
   return (
     <li
       className={cn(
-        'flex items-center gap-1.5',
-        props.active && 'text-foreground'
+        'flex items-center gap-1.5 text-[11px]',
+        active ? 'text-foreground' : 'text-muted-foreground',
       )}
     >
-      <span className='border-border flex size-4.5 items-center justify-center rounded-full border text-[10px]'>
-        {props.index}
+      <span
+        className={cn(
+          'grid h-4 w-4 place-items-center rounded-full border text-[9px] font-semibold',
+          active
+            ? 'border-foreground bg-foreground text-background'
+            : 'border-border',
+        )}
+      >
+        {index}
       </span>
-      {props.label}
+      {label}
     </li>
   )
 }
 
-function Benefit(props: { children: ReactNode }) {
+function ReceiptRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <li className='flex items-start gap-2'>
-      <Check
-        className='text-primary mt-0.5 size-3.5 shrink-0'
-        aria-hidden='true'
-      />
-      {props.children}
-    </li>
-  )
-}
-
-function ReceiptRow(props: {
-  label: string
-  children: ReactNode
-  last?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-between py-3 text-xs',
-        !props.last && 'border-border/60 border-b'
-      )}
-    >
-      <dt className='text-muted-foreground'>{props.label}</dt>
-      <dd className='font-semibold'>{props.children}</dd>
+    <div className='flex items-center justify-between gap-4'>
+      <dt className='text-muted-foreground'>{label}</dt>
+      <dd className='font-medium tabular-nums'>{value}</dd>
     </div>
   )
 }

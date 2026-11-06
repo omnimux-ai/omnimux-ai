@@ -76,7 +76,7 @@ export function landingStructuredData({
         name: brandName,
         url: `${siteUrl}/`,
         applicationCategory: 'MultimediaApplication',
-        operatingSystem: 'Web',
+        operatingSystem: 'macOS, Windows, Web',
         publisher: ref('organization'),
         description: brandDescription,
       },

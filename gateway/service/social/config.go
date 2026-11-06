@@ -3,6 +3,7 @@ package social
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -16,16 +17,16 @@ const (
 	defaultTikTokBaseURL      = "https://open.tiktokapis.com"
 	defaultTikTokAuthorizeURL = "https://www.tiktok.com/v2/auth/authorize/"
 	defaultTikTokRedirectURI  = "https://omnimux.ai/api/social/v1/oauth/tiktok/callback"
-	defaultTikTokScopes       = "user.info.basic,video.upload"
+	defaultTikTokScopes       = "user.info.basic,video.publish,video.upload"
 )
 
 // Config is Social Ops runtime configuration (env only; default off).
 type Config struct {
-	Enabled      bool
-	APIKey       string
-	BaseURL      string
-	Platforms    []string
-	WebhookSecret string
+	Enabled            bool
+	APIKey             string
+	BaseURL            string
+	Platforms          []string
+	WebhookSecret      string
 	DefaultRedirectURL string
 	// BillingMode from env is legacy ("off"|"fixed"). Seat billing is Option
 	// social_ops_setting.billing_mode — env SOCIAL_OPS_BILLING_MODE is not the seat switch.
@@ -59,7 +60,19 @@ type Config struct {
 	// SocialTokenEncKey is a base64 32B AES-GCM key for encrypting direct OAuth tokens
 	// at rest. Empty means direct account creation fails closed (no plaintext tokens).
 	SocialTokenEncKey string
+
+	// fork: social-media-own-storage — direct-post media tickets come from the
+	// gateway's own object storage instead of the Zernio bucket.
+	// MediaStorageMaxBytes caps one social media object (SOCIAL_MEDIA_MAX_BYTES).
+	MediaStorageMaxBytes int64
+	// MediaStoragePresignTTL is the lifetime of one upload/read ticket.
+	MediaStoragePresignTTL time.Duration
 }
+
+const (
+	defaultSocialMediaMaxBytes   = 512 << 20 // 512 MiB
+	defaultSocialMediaPresignTTL = 15 * time.Minute
+)
 
 func LoadConfig() Config {
 	cfg := Config{
@@ -102,6 +115,15 @@ func LoadConfig() Config {
 	cfg.TikTokBaseURL = strings.TrimRight(common.GetEnvOrDefaultString("TIKTOK_BASE_URL", defaultTikTokBaseURL), "/")
 	cfg.TikTokAuthorizeURL = strings.TrimSpace(common.GetEnvOrDefaultString("TIKTOK_AUTHORIZE_URL", defaultTikTokAuthorizeURL))
 	cfg.SocialTokenEncKey = strings.TrimSpace(os.Getenv("SOCIAL_TOKEN_ENC_KEY"))
+	// fork: social-media-own-storage
+	cfg.MediaStorageMaxBytes = int64(common.GetEnvOrDefault("SOCIAL_MEDIA_MAX_BYTES", defaultSocialMediaMaxBytes))
+	if cfg.MediaStorageMaxBytes <= 0 {
+		cfg.MediaStorageMaxBytes = defaultSocialMediaMaxBytes
+	}
+	cfg.MediaStoragePresignTTL = time.Duration(common.GetEnvOrDefault("SOCIAL_MEDIA_PRESIGN_TTL_SECONDS", int(defaultSocialMediaPresignTTL/time.Second))) * time.Second
+	if cfg.MediaStoragePresignTTL <= 0 {
+		cfg.MediaStoragePresignTTL = defaultSocialMediaPresignTTL
+	}
 	return cfg
 }
 

@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -257,11 +259,21 @@ func TestCreatePostDirectNoMediaRejected(t *testing.T) {
 
 func TestCreatePostDirectVideo(t *testing.T) {
 	setupDirectDB(t)
+	var gotVideoURL string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/post/publish/creator_info/query/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"data":{"creator_username":"u"}}`))
 	})
-	mux.HandleFunc("/v2/post/publish/video/upload/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v2/post/publish/video/init/", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			SourceInfo struct {
+				VideoURL string `json:"video_url"`
+			} `json:"source_info"`
+		}
+		buf := make([]byte, 4096)
+		n, _ := r.Body.Read(buf)
+		_ = common.Unmarshal(buf[:n], &body)
+		gotVideoURL = body.SourceInfo.VideoURL
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":{"publish_id":"pub-42"}}`))
 	})
@@ -295,6 +307,60 @@ func TestCreatePostDirectVideo(t *testing.T) {
 	assert.Equal(t, ProviderTikTokDirect, post.Provider)
 	assert.Equal(t, "pub-42", post.ProviderPostID)
 	assert.Equal(t, "submitted", post.Status)
+	// Third-party storage URL must be wrapped under verified omnimux.ai origin for TikTok PULL_FROM_URL.
+	assert.True(t, strings.HasPrefix(gotVideoURL, "https://omnimux.ai/api/social/v1/public/media/"), "expected wrapped omnimux.ai URL, got %s", gotVideoURL)
+	tok := strings.TrimPrefix(gotVideoURL, "https://omnimux.ai/api/social/v1/public/media/")
+	unwrapped, err := s.OpenPublicMediaPullToken(tok)
+	require.NoError(t, err)
+	assert.Equal(t, "https://cdn.example.com/v.mp4", unwrapped)
+}
+
+func TestTikTokMediaTokenAndComplianceValidation(t *testing.T) {
+	setupDirectDB(t)
+	s := NewService(testDirectConfig(t, "https://api.example.com"))
+
+	// Reject private/non-https URLs when sealing media token
+	_, err := s.SealPublicMediaPullToken("http://cdn.example.com/v.mp4", time.Minute)
+	require.ErrorIs(t, err, ErrMediaInvalid)
+	_, err = s.SealPublicMediaPullToken("https://127.0.0.1/v.mp4", time.Minute)
+	require.ErrorIs(t, err, ErrMediaInvalid)
+	_, err = s.SealPublicMediaPullToken("https://10.0.0.1/v.mp4", time.Minute)
+	require.ErrorIs(t, err, ErrMediaInvalid)
+
+	// Expired token is rejected
+	expiredTok, err := s.SealPublicMediaPullToken("https://cdn.example.com/v.mp4", -time.Minute)
+	require.NoError(t, err)
+	_, err = s.OpenPublicMediaPullToken(expiredTok)
+	require.ErrorIs(t, err, ErrMediaInvalid)
+
+	// Already-verified omnimux.ai URL is kept as-is
+	sameOrigin, err := s.WrapTikTokVerifiedMediaURL("https://omnimux.ai/media/clip.mp4")
+	require.NoError(t, err)
+	assert.Equal(t, "https://omnimux.ai/media/clip.mp4", sameOrigin)
+
+	// Compliance option validation: commercial_content on without subtype fails
+	tr := true
+	f := false
+	_, err = resolveTikTokPostOptions(&TikTokPostOptions{
+		PrivacyLevel:      "PUBLIC_TO_EVERYONE",
+		CommercialContent: &tr,
+	})
+	require.ErrorIs(t, err, ErrMediaInvalid)
+
+	// Branded content cannot be SELF_ONLY
+	_, err = resolveTikTokPostOptions(&TikTokPostOptions{
+		PrivacyLevel:      "SELF_ONLY",
+		CommercialContent: &tr,
+		BrandedContent:    &tr,
+	})
+	require.ErrorIs(t, err, ErrMediaInvalid)
+
+	// Music usage explicitly false fails
+	_, err = resolveTikTokPostOptions(&TikTokPostOptions{
+		PrivacyLevel:        "SELF_ONLY",
+		MusicUsageConfirmed: &f,
+	})
+	require.ErrorIs(t, err, ErrMediaInvalid)
 }
 
 func TestCreatePostMixedProvidersRejected(t *testing.T) {

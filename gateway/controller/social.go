@@ -2,15 +2,34 @@ package controller
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/service/social"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+var socialPublicMediaHTTP = &http.Client{
+	Timeout: 60 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
+
+var socialPublicMediaPassthroughHeaders = []string{
+	"Content-Type",
+	"Content-Length",
+	"Content-Range",
+	"Accept-Ranges",
+	"ETag",
+	"Last-Modified",
+	"Cache-Control",
+}
 
 // socialSvc is package-level for simple wiring; tests can replace via setSocialService.
 var socialSvc = social.DefaultService()
@@ -194,15 +213,79 @@ func SocialDisconnectAccount(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"disconnected": true, "id": id})
 }
 
+// SocialAccountCreatorInfo GET /api/social/v1/accounts/:id/creator-info?provider=tiktok_direct
+// fork: tiktok-direct — queries live TikTok creator publishing capability and UX constraints.
+func SocialAccountCreatorInfo(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		common.ApiErrorMsg(c, "invalid account id")
+		return
+	}
+	info, err := socialSvc.GetTikTokCreatorInfo(c.Request.Context(), c.GetInt("id"), c.Query("provider"), id)
+	if err != nil {
+		socialError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"creator_nickname":            info.CreatorNickname,
+		"creator_username":            info.CreatorUsername,
+		"creator_avatar_url":          info.CreatorAvatarURL,
+		"privacy_level_options":       info.PrivacyLevelOptions,
+		"comment_disabled":            info.CommentDisabled,
+		"duet_disabled":               info.DuetDisabled,
+		"stitch_disabled":             info.StitchDisabled,
+		"max_video_post_duration_sec": info.MaxVideoPostDurationSec,
+	})
+}
+
+// SocialPublicMediaProxy GET /api/social/v1/public/media/:token
+// fork: tiktok-direct — serves short-lived signed media under verified omnimux.ai for TikTok PULL_FROM_URL.
+func SocialPublicMediaProxy(c *gin.Context) {
+	upstreamURL, err := socialSvc.OpenPublicMediaPullToken(c.Param("token"))
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid or expired media token", "code": "SOCIAL_MEDIA_INVALID"})
+		return
+	}
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, upstreamURL, nil)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid media request", "code": "SOCIAL_MEDIA_INVALID"})
+		return
+	}
+	if rng := c.GetHeader("Range"); rng != "" {
+		req.Header.Set("Range", rng)
+	}
+	if ir := c.GetHeader("If-Range"); ir != "" {
+		req.Header.Set("If-Range", ir)
+	}
+	resp, err := socialPublicMediaHTTP.Do(req)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"success": false, "message": "media upstream unreachable", "code": "SOCIAL_MEDIA_UPSTREAM_ERROR"})
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"success": false, "message": "media upstream rejected request", "code": "SOCIAL_MEDIA_UPSTREAM_ERROR"})
+		return
+	}
+	for _, h := range socialPublicMediaPassthroughHeaders {
+		if v := resp.Header.Get(h); v != "" {
+			c.Writer.Header().Set(h, v)
+		}
+	}
+	c.Status(resp.StatusCode)
+	_, _ = io.Copy(c.Writer, resp.Body)
+}
+
 type socialCreatePostRequest struct {
-	Provider     string           `json:"provider"`
-	Content      string           `json:"content"`
-	AccountIDs   []int64          `json:"account_ids"`
-	PublishNow   *bool            `json:"publish_now"`
-	ScheduledFor string           `json:"scheduled_for"`
-	Timezone     string           `json:"timezone"`
-	MediaItems   []map[string]any `json:"media_items"`
-	Queued       bool             `json:"queued"`
+	Provider      string                    `json:"provider"`
+	Content       string                    `json:"content"`
+	AccountIDs    []int64                   `json:"account_ids"`
+	PublishNow    *bool                     `json:"publish_now"`
+	ScheduledFor  string                    `json:"scheduled_for"`
+	Timezone      string                    `json:"timezone"`
+	MediaItems    []map[string]any          `json:"media_items"`
+	Queued        bool                      `json:"queued"`
+	TikTokOptions *social.TikTokPostOptions `json:"tiktok_options"`
 }
 
 // SocialCreatePost POST /api/social/v1/posts
@@ -233,6 +316,7 @@ func SocialCreatePost(c *gin.Context) {
 		MediaItems:     req.MediaItems,
 		IdempotencyKey: idem,
 		Queued:         req.Queued,
+		TikTokOptions:  req.TikTokOptions,
 	})
 	if err != nil {
 		socialError(c, err)

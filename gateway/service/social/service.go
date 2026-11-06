@@ -22,6 +22,8 @@ var (
 	ErrAccountMissing = errors.New("account not found")
 	ErrRedirectDenied = errors.New("redirect_url host is not allowed")
 	ErrMediaInvalid   = errors.New("invalid media request")
+	// fork: social-media-own-storage — the own bucket cannot issue an upload ticket.
+	ErrMediaStorageUnavailable = errors.New("social media storage is not configured")
 
 	// Seat errors are aliases so controllers can errors.Is against this package.
 	// fork: social-seats
@@ -277,6 +279,18 @@ func AccountGuard(userId int, localIDs []int64) ([]*model.SocialAccount, error) 
 	return rows, nil
 }
 
+// TikTokPostOptions carries optional Content Sharing Guidelines metadata for a TikTok Direct post.
+type TikTokPostOptions struct {
+	PrivacyLevel        string `json:"privacy_level,omitempty"`
+	AllowComment        *bool  `json:"allow_comment,omitempty"`
+	AllowDuet           *bool  `json:"allow_duet,omitempty"`
+	AllowStitch         *bool  `json:"allow_stitch,omitempty"`
+	CommercialContent   *bool  `json:"commercial_content,omitempty"`
+	YourBrand           *bool  `json:"your_brand,omitempty"`
+	BrandedContent      *bool  `json:"branded_content,omitempty"`
+	MusicUsageConfirmed *bool  `json:"music_usage_confirmed,omitempty"`
+}
+
 // CreatePostInput is the user-facing create-post body.
 type CreatePostInput struct {
 	Provider       string
@@ -288,6 +302,7 @@ type CreatePostInput struct {
 	MediaItems     []map[string]any
 	IdempotencyKey string
 	Queued         bool
+	TikTokOptions  *TikTokPostOptions
 }
 
 // CreatePost publishes or schedules a post for the user's owned accounts only.
@@ -471,11 +486,13 @@ func (s *Service) GetPost(ctx context.Context, userId int, provider string, post
 	return model.GetSocialPostByIDForUser(postID, userId)
 }
 
-// PresignMedia proxies media presign for the user (no per-user media ownership table in P0).
+// PresignMedia issues one upload ticket for a social post's media.
 // Client must PUT the file to upload_url, then pass public_url in posts.media_items.
+// fork: social-media-own-storage — the official TikTok direct path signs against the
+// gateway's own bucket so a Zernio outage cannot block direct publishing.
 func (s *Service) PresignMedia(ctx context.Context, userId int, body map[string]any) (map[string]any, error) {
-	if err := s.requireReady(); err != nil {
-		return nil, err
+	if !s.cfg.Enabled {
+		return nil, ErrDisabled
 	}
 	if userId <= 0 {
 		return nil, errors.New("invalid user")
@@ -483,6 +500,12 @@ func (s *Service) PresignMedia(ctx context.Context, userId int, body map[string]
 	in, err := NormalizePresignInput(body)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrMediaInvalid, err)
+	}
+	if s.presignUsesOwnStorage(body) {
+		return s.presignOwnMediaStorage(ctx, userId, in)
+	}
+	if err := s.requireReady(); err != nil {
+		return nil, err
 	}
 	if _, err := s.EnsureTenant(ctx, userId); err != nil {
 		return nil, err

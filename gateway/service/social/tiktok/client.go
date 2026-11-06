@@ -26,7 +26,7 @@ const (
 	revokePath      = "/v2/oauth/revoke/"
 	userInfoPath    = "/v2/user/info/"
 	creatorInfoPath = "/v2/post/publish/creator_info/query/"
-	videoUploadPath = "/v2/post/publish/video/upload/"
+	videoUploadPath = "/v2/post/publish/video/init/"
 	videoInboxPath  = "/v2/post/publish/inbox/video/upload/"
 	photoPostPath   = "/v2/post/publish/content/init/"
 	statusPath      = "/v2/post/publish/status/fetch/"
@@ -86,12 +86,12 @@ type Token struct {
 }
 
 type tokenEnvelope struct {
-	Data    *Token `json:"data"`
-	Error   *apiErrorBody `json:"error"`
-	AccessToken string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn int64 `json:"expires_in"`
-	OpenID string `json:"open_id"`
+	Data         *Token        `json:"data"`
+	Error        *apiErrorBody `json:"error"`
+	AccessToken  string        `json:"access_token"`
+	RefreshToken string        `json:"refresh_token"`
+	ExpiresIn    int64         `json:"expires_in"`
+	OpenID       string        `json:"open_id"`
 }
 
 type apiErrorBody struct {
@@ -282,11 +282,56 @@ func (c *Client) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo
 
 // CreatorInfo mirrors the publishing capability of the authorized account.
 type CreatorInfo struct {
-	CreatorNickname   string `json:"creator_nickname"`
-	CreatorUsername   string `json:"creator_username"`
-	CreatorAvatarURL  string `json:"creator_avatar_url"`
-	PrivacyLevelOptions []string `json:"privacy_level_options"`
-	MaxVideoPostDurationSec int `json:"max_video_post_duration_sec"`
+	CreatorNickname         string   `json:"creator_nickname"`
+	CreatorUsername         string   `json:"creator_username"`
+	CreatorAvatarURL        string   `json:"creator_avatar_url"`
+	PrivacyLevelOptions     []string `json:"privacy_level_options"`
+	CommentDisabled         bool     `json:"comment_disabled"`
+	DuetDisabled            bool     `json:"duet_disabled"`
+	StitchDisabled          bool     `json:"stitch_disabled"`
+	MaxVideoPostDurationSec int      `json:"max_video_post_duration_sec"`
+}
+
+// PostOptions carries optional TikTok Content Sharing Guidelines fields for a post.
+type PostOptions struct {
+	PrivacyLevel       string
+	DisableComment     *bool
+	DisableDuet        *bool
+	DisableStitch      *bool
+	BrandContentToggle *bool
+	BrandOrganicToggle *bool
+}
+
+func buildPostInfo(title, defaultPrivacy string, opts *PostOptions) map[string]any {
+	privacyLevel := defaultPrivacy
+	if opts != nil && strings.TrimSpace(opts.PrivacyLevel) != "" {
+		privacyLevel = strings.TrimSpace(opts.PrivacyLevel)
+	}
+	if privacyLevel == "" {
+		privacyLevel = "SELF_ONLY"
+	}
+	postInfo := map[string]any{
+		"title":         title,
+		"privacy_level": privacyLevel,
+	}
+	if opts != nil {
+		if opts.DisableComment != nil {
+			postInfo["disable_comment"] = *opts.DisableComment
+		}
+		if opts.DisableDuet != nil {
+			postInfo["disable_duet"] = *opts.DisableDuet
+		}
+		if opts.DisableStitch != nil {
+			postInfo["disable_stitch"] = *opts.DisableStitch
+		}
+		if opts.BrandContentToggle != nil {
+			postInfo["brand_content_toggle"] = *opts.BrandContentToggle
+		}
+		if opts.BrandOrganicToggle != nil {
+			postInfo["brand_organic_toggle"] = *opts.BrandOrganicToggle
+		}
+	}
+	return postInfo
 }
 
 // QueryCreatorInfo is required before publishing per TikTok UX guidelines.
@@ -315,14 +360,13 @@ type PublishInitResponse struct {
 
 // PublishVideoByURL initializes a direct video post pulled from a public URL.
 func (c *Client) PublishVideoByURL(ctx context.Context, accessToken, title, videoURL, privacyLevel string) (*PublishInitResponse, error) {
-	if privacyLevel == "" {
-		privacyLevel = "SELF_ONLY"
-	}
+	return c.PublishVideoByURLWithOptions(ctx, accessToken, title, videoURL, &PostOptions{PrivacyLevel: privacyLevel})
+}
+
+// PublishVideoByURLWithOptions initializes a direct video post with Content Sharing Guidelines options.
+func (c *Client) PublishVideoByURLWithOptions(ctx context.Context, accessToken, title, videoURL string, opts *PostOptions) (*PublishInitResponse, error) {
 	body := map[string]any{
-		"post_info": map[string]any{
-			"title":         title,
-			"privacy_level": privacyLevel,
-		},
+		"post_info": buildPostInfo(title, "SELF_ONLY", opts),
 		"source_info": map[string]any{
 			"source":    "PULL_FROM_URL",
 			"video_url": videoURL,
@@ -333,19 +377,21 @@ func (c *Client) PublishVideoByURL(ctx context.Context, accessToken, title, vide
 
 // PublishPhotoByURL initializes a photo post pulled from public URLs.
 func (c *Client) PublishPhotoByURL(ctx context.Context, accessToken, title string, photoURLs []string, privacyLevel string) (*PublishInitResponse, error) {
-	if privacyLevel == "" {
-		privacyLevel = "SELF_ONLY"
-	}
+	return c.PublishPhotoByURLWithOptions(ctx, accessToken, title, photoURLs, &PostOptions{PrivacyLevel: privacyLevel})
+}
+
+// PublishPhotoByURLWithOptions initializes a photo post with Content Sharing Guidelines options.
+func (c *Client) PublishPhotoByURLWithOptions(ctx context.Context, accessToken, title string, photoURLs []string, opts *PostOptions) (*PublishInitResponse, error) {
+	postInfo := buildPostInfo(title, "SELF_ONLY", opts)
+	delete(postInfo, "disable_duet")
+	delete(postInfo, "disable_stitch")
 	body := map[string]any{
-		"post_info": map[string]any{
-			"title":         title,
-			"privacy_level": privacyLevel,
-		},
+		"post_info": postInfo,
 		"source_info": map[string]any{
-			"source":      "PULL_FROM_URL",
+			"source":       "PULL_FROM_URL",
 			"photo_images": photoURLs,
 		},
-		"post_mode": "DIRECT_POST",
+		"post_mode":  "DIRECT_POST",
 		"media_type": "PHOTO",
 	}
 	return c.publishInit(ctx, accessToken, photoPostPath, body)
@@ -374,9 +420,9 @@ func (c *Client) publishInit(ctx context.Context, accessToken, path string, body
 
 // PublishStatus is the publish task status.
 type PublishStatus struct {
-	Status string `json:"status"`
+	Status     string `json:"status"`
 	FailReason string `json:"fail_reason"`
-	PublishID string `json:"publish_id"`
+	PublishID  string `json:"publish_id"`
 }
 
 // GetPublishStatus fetches publish task status.
@@ -410,10 +456,10 @@ func (c *Client) UploadVideoFile(ctx context.Context, accessToken, title string,
 			"privacy_level": privacyLevel,
 		},
 		"source_info": map[string]any{
-			"source":              "FILE_UPLOAD",
-			"video_size":          len(video),
-			"chunk_size":          len(video),
-			"total_chunk_count":   1,
+			"source":            "FILE_UPLOAD",
+			"video_size":        len(video),
+			"chunk_size":        len(video),
+			"total_chunk_count": 1,
 		},
 	}
 	// TikTok FILE_UPLOAD flow first initializes then uploads to a signed URL.

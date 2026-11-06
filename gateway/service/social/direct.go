@@ -221,18 +221,102 @@ func firstNonEmpty(v, fallback string) string {
 	return fallback
 }
 
+// GetTikTokCreatorInfo queries live TikTok creator publishing settings for an owned direct account.
+func (s *Service) GetTikTokCreatorInfo(ctx context.Context, userId int, provider string, localAccountID int64) (*tiktok.CreatorInfo, error) {
+	if err := validateProvider(provider); err != nil {
+		return nil, err
+	}
+	if !s.cfg.Enabled {
+		return nil, ErrDisabled
+	}
+	acc, err := model.GetSocialAccountByIDForUser(localAccountID, userId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAccountMissing
+		}
+		return nil, err
+	}
+	if acc.Provider != provider {
+		return nil, ErrAccountProviderMismatch
+	}
+	if provider != ProviderTikTokDirect {
+		return nil, ErrPlatformDenied
+	}
+	if err := s.tiktokDirectUsable(); err != nil {
+		return nil, err
+	}
+	accessToken, err := s.accessTokenForAccount(ctx, acc)
+	if err != nil {
+		return nil, err
+	}
+	return s.tiktokClient().QueryCreatorInfo(ctx, accessToken)
+}
+
+func resolveTikTokPostOptions(in *TikTokPostOptions) (*tiktok.PostOptions, error) {
+	if in == nil {
+		return &tiktok.PostOptions{PrivacyLevel: "SELF_ONLY"}, nil
+	}
+	if in.MusicUsageConfirmed != nil && !*in.MusicUsageConfirmed {
+		return nil, fmt.Errorf("%w: music usage confirmation is required", ErrMediaInvalid)
+	}
+	privacy := strings.ToUpper(strings.TrimSpace(in.PrivacyLevel))
+	if privacy == "" {
+		privacy = "SELF_ONLY"
+	}
+	switch privacy {
+	case "PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY":
+	default:
+		return nil, fmt.Errorf("%w: unsupported tiktok privacy_level %q", ErrMediaInvalid, in.PrivacyLevel)
+	}
+	commOn := in.CommercialContent != nil && *in.CommercialContent
+	yourBrand := in.YourBrand != nil && *in.YourBrand
+	branded := in.BrandedContent != nil && *in.BrandedContent
+	if commOn && !yourBrand && !branded {
+		return nil, fmt.Errorf("%w: commercial content disclosure requires your_brand or branded_content", ErrMediaInvalid)
+	}
+	if branded && privacy == "SELF_ONLY" {
+		return nil, fmt.Errorf("%w: branded content visibility cannot be SELF_ONLY", ErrMediaInvalid)
+	}
+	out := &tiktok.PostOptions{PrivacyLevel: privacy}
+	if in.AllowComment != nil {
+		dis := !*in.AllowComment
+		out.DisableComment = &dis
+	}
+	if in.AllowDuet != nil {
+		dis := !*in.AllowDuet
+		out.DisableDuet = &dis
+	}
+	if in.AllowStitch != nil {
+		dis := !*in.AllowStitch
+		out.DisableStitch = &dis
+	}
+	if commOn || in.YourBrand != nil {
+		v := commOn && yourBrand
+		out.BrandOrganicToggle = &v
+	}
+	if commOn || in.BrandedContent != nil {
+		v := commOn && branded
+		out.BrandContentToggle = &v
+	}
+	return out, nil
+}
+
 // createPostTikTokDirect publishes to a single direct account (v1: one account per call path branch).
 func (s *Service) createPostTikTokDirect(ctx context.Context, userId int, acc *model.SocialAccount, in CreatePostInput, mediaItems []map[string]any) (*model.SocialPost, error) {
 	if err := s.tiktokDirectUsable(); err != nil {
 		return nil, err
 	}
-	// Validate media first so SOCIAL_MEDIA_INVALID surfaces before credential errors.
+	// Validate media and TikTok compliance options first so SOCIAL_MEDIA_INVALID surfaces before credential errors.
 	if len(mediaItems) == 0 {
 		return nil, fmt.Errorf("%w: tiktok direct requires at least one media item (video or photo)", ErrMediaInvalid)
 	}
 	firstURL := fmt.Sprint(mediaItems[0]["url"])
 	if strings.TrimSpace(firstURL) == "" {
 		return nil, fmt.Errorf("%w: empty media url", ErrMediaInvalid)
+	}
+	postOpts, err := resolveTikTokPostOptions(in.TikTokOptions)
+	if err != nil {
+		return nil, err
 	}
 	accessToken, err := s.accessTokenForAccount(ctx, acc)
 	if err != nil {
@@ -250,20 +334,28 @@ func (s *Service) createPostTikTokDirect(ctx context.Context, userId int, acc *m
 		if typ == "image" || isImageURL(u) {
 			urls := make([]string, 0, len(mediaItems))
 			for _, m := range mediaItems {
-				uu := fmt.Sprint(m["url"])
+				uu := strings.TrimSpace(fmt.Sprint(m["url"]))
 				if uu != "" {
-					urls = append(urls, uu)
+					wrapped, werr := s.WrapTikTokVerifiedMediaURL(uu)
+					if werr != nil {
+						return nil, werr
+					}
+					urls = append(urls, wrapped)
 				}
 			}
 			if len(urls) == 0 {
 				return nil, fmt.Errorf("%w: empty photo urls", ErrMediaInvalid)
 			}
-			pub, err = client.PublishPhotoByURL(ctx, accessToken, title, urls, "")
+			pub, err = client.PublishPhotoByURLWithOptions(ctx, accessToken, title, urls, postOpts)
 		} else {
 			if u == "" {
 				return nil, fmt.Errorf("%w: empty video url", ErrMediaInvalid)
 			}
-			pub, err = client.PublishVideoByURL(ctx, accessToken, title, u, "")
+			wrapped, werr := s.WrapTikTokVerifiedMediaURL(u)
+			if werr != nil {
+				return nil, werr
+			}
+			pub, err = client.PublishVideoByURLWithOptions(ctx, accessToken, title, wrapped, postOpts)
 		}
 	}
 	if err != nil {

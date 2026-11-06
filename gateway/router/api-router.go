@@ -17,7 +17,7 @@ import (
 func SetApiRouter(router *gin.Engine) {
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
-	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/api/inspiration/v1/media", "/api/inspiration/v1/public/media"})))
+	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/api/inspiration/v1/media", "/api/inspiration/v1/public/media", "/api/social/v1/public/media"})))
 	apiRouter.Use(middleware.AccessTokenAudit())
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
@@ -243,11 +243,13 @@ func SetApiRouter(router *gin.Engine) {
 			// fork: tiktok-direct — official OAuth callback is anonymous (state binds it to the user).
 			socialRoute.GET("/oauth/tiktok/callback", controller.SocialTikTokCallback)
 			socialRoute.POST("/oauth/tiktok/callback", controller.SocialTikTokCallback)
+			socialRoute.GET("/public/media/:token", middleware.DownloadRateLimit(), controller.SocialPublicMediaProxy)
 			socialAuthed := socialRoute.Group("/")
 			socialAuthed.Use(middleware.UserAuth())
 			{
 				socialAuthed.GET("/seats", controller.SocialSeats)
 				socialAuthed.GET("/accounts", controller.SocialListAccounts)
+				socialAuthed.GET("/accounts/:id/creator-info", controller.SocialAccountCreatorInfo)
 				socialAuthed.POST("/connect", middleware.CriticalRateLimit(), controller.SocialConnect)
 				socialAuthed.DELETE("/accounts/:id", middleware.CriticalRateLimit(), controller.SocialDisconnectAccount)
 				socialAuthed.POST("/posts", middleware.CriticalRateLimit(), controller.SocialCreatePost)

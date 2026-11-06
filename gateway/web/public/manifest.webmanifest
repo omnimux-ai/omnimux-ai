@@ -1,7 +1,7 @@
 {
   "name": "OmniMux",
   "short_name": "OmniMux",
-  "description": "OmniMux Desktop breaks down a reference video, recreates it with your product, and publishes on a schedule. Generate with your own character, product image or reference clip.",
+  "description": "Your local AI content commerce team. Break down viral product videos and recreate them with your own product and AI character. No subscription, pay as you go.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

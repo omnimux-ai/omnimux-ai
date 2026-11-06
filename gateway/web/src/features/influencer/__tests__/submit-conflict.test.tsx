@@ -292,7 +292,7 @@ describe('applying an inspiration preset and generating', () => {
     }
   )
 
-  it('opens the subscription takeover without submitting when the balance cannot cover the quote', async () => {
+  it('opens the top-up takeover without submitting when the balance cannot cover the quote', async () => {
     auth.quota = 10 // 0.0002 credits; the image quote is 0.0147
     const user = userEvent.setup()
     render(
@@ -307,14 +307,14 @@ describe('applying an inspiration preset and generating', () => {
     await user.click(generate)
     expect(
       await screen.findByRole('dialog', {
-        name: 'Subscribe to continue this generation',
+        name: 'Top up to continue this generation',
       })
     ).toBeVisible()
     expect(post).not.toHaveBeenCalled()
     auth.quota = undefined
   })
 
-  it('opens the full-screen subscription takeover when the gateway rejects for quota', async () => {
+  it('opens the full-screen top-up takeover when the gateway rejects for quota', async () => {
     const user = userEvent.setup()
     post.mockImplementation((url: string) => {
       if (url === '/pg/influencer/sheet') {
@@ -340,14 +340,12 @@ describe('applying an inspiration preset and generating', () => {
     await user.click(generate)
     expect(
       await screen.findByRole('dialog', {
-        name: 'Subscribe to continue this generation',
+        name: 'Top up to continue this generation',
       })
     ).toBeVisible()
-    // The site sells no plans in this fixture, so the takeover degrades to top-up.
+    // The site offers no Stripe top-up in this fixture, so the takeover points to Wallet.
     expect(
-      await screen.findByRole('heading', {
-        name: 'No subscription plans available',
-      })
+      await screen.findByRole('heading', { name: 'Top up in Wallet' })
     ).toBeVisible()
   })
 
