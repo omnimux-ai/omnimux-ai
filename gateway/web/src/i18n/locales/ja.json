@@ -126,6 +126,8 @@
     "{{operation}} (ID: {{id}})": "{{operation}}（ID: {{id}}）",
     "{{options}} removed: not compatible with the rest of this look in this mode.": "{{options}} を削除しました：このモードでは残りの設定と組み合わせられません。",
     "{{percent}}% OFF": "{{percent}}% オフ",
+    "{{price}} top-up, get {{credits}}": "{{price}} top-up, get {{credits}}",
+    "{{price}} top-up, get {{credits}}, save {{saved}}": "{{price}} top-up, get {{credits}}, save {{saved}}",
     "{{processed}} of {{total}} log entries processed.": "{{total}} 件中 {{processed}} 件のログを処理しました。",
     "{{protocol}} auth name": "{{protocol}} 認証名",
     "{{protocol}} auth value": "{{protocol}} 認証値",
@@ -9413,6 +9415,17 @@
     "Temporarily unavailable": "一時的に利用できません",
     "Keep this page open": "このページを開いたままにしてください",
     "Up to 9 reference images": "参照画像は最大9枚",
-    "First image defines the subject": "最初の画像が主体を定義します"
+    "First image defines the subject": "最初の画像が主体を定義します",
+    "Add credits in Wallet and come back to continue.": "ウォレットでクレジットを追加してから戻って続行してください。",
+    "Choose an amount": "金額を選択",
+    "Opening Stripe…": "Stripe を開いています…",
+    "Pay with Stripe": "Stripe で支払う",
+    "Pay {{price}} with Stripe": "Stripe で {{price}} を支払う",
+    "Payment is processed by Stripe.": "支払いは Stripe によって処理されます。",
+    "Top up in Wallet": "ウォレットでチャージ",
+    "Top up successful": "チャージ完了",
+    "Top up to continue this generation": "チャージしてこの生成を続行",
+    "Top up": "チャージ",
+    "Your credits are ready — generation resumes automatically.": "クレジットが反映されました — 生成は自動的に再開されます。"
   }
 }
