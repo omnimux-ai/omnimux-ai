@@ -116,7 +116,22 @@ export function createHubChannel(deps = {}) {
     if (!uploadUrl || !publicUrl) {
       throw new PublishError('hub-tool-error', `presign response missing upload_url/public_url: ${JSON.stringify(data).slice(0, 300)}`)
     }
-    return { upload_url: uploadUrl, public_url: publicUrl }
+    // A presigned ticket may bind extra headers (for example R2's If-None-Match).
+    // Replay them, but normalize the name to lower case and drop `host`: the HTTP
+    // stack owns Host and signs it implicitly, so echoing it breaks the signature.
+    /** @type {Record<string, string>} */
+    const headers = {}
+    if (isObject(data.headers)) {
+      for (const [key, value] of Object.entries(data.headers)) {
+        const name = key.trim().toLowerCase()
+        if (name === '' || name === 'host') continue
+        if (typeof value === 'string' && value !== '') headers[name] = value
+      }
+    }
+    const uploadMethod = typeof data.upload_method === 'string' && data.upload_method !== ''
+      ? data.upload_method.toUpperCase()
+      : 'PUT'
+    return { upload_url: uploadUrl, public_url: publicUrl, headers, upload_method: uploadMethod }
   }
 
   /**
@@ -138,6 +153,16 @@ export function createHubChannel(deps = {}) {
   }
 
   /**
+   * 读取账号在 TikTok 侧的发布能力（可用隐私级别、禁用的互动项）。
+   * @param {string} accountId
+   * @param {{ agent?: unknown, signal?: AbortSignal }} [opts]
+   */
+  async function creatorInfo(accountId, opts = {}) {
+    const value = await exec('omnimux_accounts_creator_info', { id: String(accountId), provider: PUBLISH_PROVIDER }, opts)
+    return unwrap(value, 'omnimux_accounts_creator_info')
+  }
+
+  /**
    * @param {{ agent?: unknown, signal?: AbortSignal }} [opts]
    */
   async function listAccounts(opts = {}) {
@@ -146,18 +171,35 @@ export function createHubChannel(deps = {}) {
   }
 
   /**
-   * PUT 字节到预签名 URL（预签名自授权，不带任何 auth header）。
+   * 把字节发到预签名 URL（预签名自授权，不带任何 auth header）。
+   * `headers` 来自 presign 响应：签名绑定的头必须原样回放，否则对象存储会以 403 拒绝。
    * @param {string} uploadUrl
    * @param {Buffer} buffer
    * @param {string} contentType
    * @param {{ signal?: AbortSignal }} [opts]
+   * @param {{ headers?: Record<string, string>, upload_method?: string }} [ticket]
    */
-  async function putBytes(uploadUrl, buffer, contentType, opts = {}) {
+  async function putBytes(uploadUrl, buffer, contentType, opts = {}, ticket = {}) {
+    const method = typeof ticket.upload_method === 'string' && ticket.upload_method !== ''
+      ? ticket.upload_method.toUpperCase()
+      : 'PUT'
+    if (method !== 'PUT') {
+      throw new PublishError('upload-failed', `unsupported presign upload method: ${method}`)
+    }
+    /** @type {Record<string, string>} */
+    const headers = { 'content-type': contentType }
+    if (isObject(ticket.headers)) {
+      for (const [key, value] of Object.entries(ticket.headers)) {
+        const name = key.trim().toLowerCase()
+        if (name === '' || name === 'host') continue
+        if (typeof value === 'string' && value !== '') headers[name] = value
+      }
+    }
     let response
     try {
       response = await fetcher(uploadUrl, {
-        method: 'PUT',
-        headers: { 'content-type': contentType },
+        method,
+        headers,
         body: buffer,
         ...(opts.signal ? { signal: opts.signal } : {}),
       })
@@ -171,7 +213,7 @@ export function createHubChannel(deps = {}) {
     return { ok: true, status: response.status }
   }
 
-  return { exec, unwrap, presign, createPost, getPost, listAccounts, putBytes }
+  return { exec, unwrap, presign, createPost, getPost, listAccounts, creatorInfo, putBytes }
 }
 
 /**

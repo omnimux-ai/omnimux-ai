@@ -21,8 +21,18 @@ import {
   uploadMedia,
 } from './inspiration.js'
 
+/** The official cloud inspiration catalog is public; keep its explicit cross-origin read contract. */
 const PREFIX = '/omnimux/inspiration'
 const SITE_MEDIA = '/api/inspiration/v1/media/'
+
+function isLocalWrite(req) {
+  try {
+    assertLocalWrite(req, { rejectSameSite: true })
+    return true
+  } catch {
+    return false
+  }
+}
 
 function queryRecord(url) {
   /** @type {Record<string, unknown>} */
@@ -108,10 +118,16 @@ export function createInspirationDispatcher(deps = {}) {
     if (path.startsWith(`${PREFIX}/media/`)) {
       return { status: 404, body: { error: 'use stream' } }
     }
+    if (method === 'GET' && !isLocalWrite(req)) {
+      return { status: 403, body: { error: 'not-local', message: '灵感读取只接受本机同源页面' } }
+    }
     const isShareRequest = method === 'POST' && path.endsWith('/share')
+    if (isShareRequest && !isLocalWrite(req)) {
+      return { status: 403, body: { error: 'not-local', message: '分享请求只接受本机同源页面' } }
+    }
     if (method !== 'GET' && !isShareRequest) {
       try {
-        assertLocalWrite(req)
+        assertLocalWrite(req, { rejectSameSite: true })
         if (deps.identity && typeof deps.identity.require === 'function') {
           const profile = await deps.identity.require()
           const isAdmin = Boolean(profile?.is_admin || (typeof profile?.role === 'number' && profile.role >= 10))
@@ -281,20 +297,33 @@ export function registerInspirationRoutes(webServer, dispatcher) {
     kind: 'prefix',
     path: PREFIX,
     async handler(req, res) {
+      const method = (req.method || 'GET').toUpperCase()
+      const sendResponse = sendJson
       try {
-        if ((req.method || '').toUpperCase() === 'OPTIONS') {
+        if (method === 'OPTIONS') {
           sendJson(res, 204, {})
           return
         }
         const url = new URL(req.url || PREFIX, 'http://127.0.0.1')
         if (url.pathname.startsWith(`${PREFIX}/media/`)) {
+          const mediaRequest = {
+            origin: header(req, 'origin'),
+            referer: header(req, 'referer'),
+            secFetchSite: header(req, 'sec-fetch-site'),
+            host: header(req, 'host'),
+            secure: Boolean(req.socket?.encrypted),
+          }
+          if (!isLocalWrite(mediaRequest)) {
+            sendJson(res, 403, { error: 'not-local', message: '媒体读取只接受本机同源页面' })
+            return
+          }
           await dispatcher.streamMedia(req, res)
           return
         }
         const wantsBody = req.method === 'POST' || req.method === 'PATCH'
         const body = wantsBody ? await readJsonBody(req) : undefined
         if (wantsBody && body === null) {
-          sendJson(res, 400, { error: 'invalid json' })
+          sendResponse(res, 400, { error: 'invalid json' })
           return
         }
         const result = await dispatcher.dispatch({
@@ -304,10 +333,12 @@ export function registerInspirationRoutes(webServer, dispatcher) {
           origin: header(req, 'origin'),
           referer: header(req, 'referer'),
           secFetchSite: header(req, 'sec-fetch-site'),
+          host: header(req, 'host'),
+          secure: Boolean(req.socket?.encrypted),
         })
-        sendJson(res, result.status, result.body)
+        sendResponse(res, result.status, result.body)
       } catch {
-        sendJson(res, 500, { error: 'internal error' })
+        sendResponse(res, 500, { error: 'internal error' })
       }
     },
   })

@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -78,9 +78,20 @@ export const KNOWN_AGENTS = Object.freeze([
     // train, so this CLI's own release ledger is the only truthful source.
     update: Object.freeze({
       channel: 'self',
-      selfCommand: Object.freeze({ bin: 'kimi', args: Object.freeze(['upgrade']) }),
+      // `--yes` exists on newer builds; 0.34 ignores it. Without a TTY even
+      // 0.34 only prints the manual command and exits 0.
+      selfCommand: Object.freeze({ bin: 'kimi', args: Object.freeze(['upgrade', '--yes']) }),
       ledgerPath: '.kimi-code/updates/latest.json',
       ledgerVersionKey: 'latest',
+      // 0.34.0's upgrade cannot install non-interactively: it prints the text
+      // below and exits 0 without touching the binary. Re-run the official
+      // installer (the same command Kimi's own native upgrade spawns).
+      manualOnlyPattern: 'To update manually|Auto-update is not supported',
+      fallbackCommand: Object.freeze({
+        darwin: Object.freeze({ bin: 'bash', args: Object.freeze(['-c', 'set -o pipefail; curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash']) }),
+        linux: Object.freeze({ bin: 'bash', args: Object.freeze(['-c', 'set -o pipefail; curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash']) }),
+        win32: Object.freeze({ bin: 'powershell', args: Object.freeze(['-NoProfile', '-Command', 'irm https://code.kimi.com/kimi-code/install.ps1 | iex']) }),
+      }),
     }),
   },
   {
@@ -103,6 +114,29 @@ export const KNOWN_AGENTS = Object.freeze([
     update: Object.freeze({ channel: 'npm', npmPackage: '@qwen-code/qwen-code' }),
   },
 ])
+
+function extraBinDirs(home, fsImpl) {
+  const dirs = [
+    path.join(home, '.local', 'bin'),
+    path.join(home, '.bun', 'bin'),
+    path.join(home, '.kimi-code', 'bin'),
+    path.join(home, '.grok', 'bin'),
+    path.join(home, '.codeium', 'windsurf', 'bin'),
+    path.join(home, '.volta', 'bin'),
+    path.join(home, '.npm-global', 'bin'),
+    path.join(home, 'Library', 'pnpm'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+  ]
+  try {
+    const nvmRoot = path.join(home, '.nvm', 'versions', 'node')
+    const versions = fsImpl.readdirSync(nvmRoot).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+    for (const version of versions) dirs.push(path.join(nvmRoot, version, 'bin'))
+  } catch {
+    // No nvm install; ignore.
+  }
+  return dirs
+}
 
 /**
  * Resolve an executable name to the absolute path PATH would pick. A missing
@@ -140,7 +174,9 @@ export function resolveBinPath(bin, options = {}) {
     }
     return executable(raw) ? realpath(raw) : ''
   }
-  const dirs = String(env.PATH || '').split(platform === 'win32' ? ';' : ':').filter(Boolean)
+  const home = env.HOME || os.homedir()
+  const pathDirs = String(env.PATH || '').split(platform === 'win32' ? ';' : ':').filter(Boolean)
+  const dirs = [...new Set([...pathDirs, ...extraBinDirs(home, fsImpl)])]
   const extensions = platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : ['']
   for (const dir of dirs) {
     for (const extension of extensions) {
@@ -179,12 +215,34 @@ export function isSafeAgentModel(model) {
  * If the config/cache is present, returns live model identifiers; otherwise returns
  * the static known models for that agent.
  * @param {string} id
- * @param {{ codexPath?: string, kimiPath?: string }} [options]
+ * @param {{ codexPath?: string, kimiPath?: string, runCodexModels?: () => string }} [options]
  * @returns {string[]}
  */
 export function probeAgentModels(id, options = {}) {
   try {
     if (id === 'codex') {
+      const runModels = options.codexPath
+        ? null
+        : (typeof options.runCodexModels === 'function'
+            ? options.runCodexModels
+            : () => execFileSync('codex', ['debug', 'models'], {
+                timeout: 5000,
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],
+              }))
+      let live = null
+      try {
+        live = runModels ? JSON.parse(String(runModels() || '')) : null
+      } catch {
+        live = null
+      }
+      if (live && Array.isArray(live.models)) {
+        const list = live.models
+          .filter((model) => model && model.visibility === 'list')
+          .map((model) => String(model.slug || model.id || '').trim())
+          .filter((model) => isSafeAgentModel(model))
+        if (list.length > 0) return [...new Set(list)]
+      }
       const cachePath = options.codexPath || path.join(os.homedir(), '.codex', 'models_cache.json')
       if (fs.existsSync(cachePath)) {
         const raw = fs.readFileSync(cachePath, 'utf8')
@@ -233,11 +291,22 @@ export async function probeAgentBin(bin, run = execFileAsync) {
  * Scan PATH for the known agent CLIs. Returns every known agent with its
  * availability and dynamically probed models.
  * @param {(file: string, args: string[], opts: object) => Promise<{ stdout: string, stderr: string }>} [run]
- * @param {{ codexPath?: string, kimiPath?: string }} [options]
+ * @param {{ codexPath?: string, kimiPath?: string, runCodexModels?: () => string }} [options]
  */
 export async function scanLocalAgents(run = execFileAsync, options = {}) {
   const rows = await Promise.all(KNOWN_AGENTS.map(async (agent) => {
-    const probe = await probeAgentBin(agent.bin, run)
+    const resolved = resolveBinPath(agent.bin, options)
+    const probeRun = resolved
+      ? (file, args, opts = {}) => run(file, args, {
+          ...opts,
+          env: {
+            ...process.env,
+            PATH: [path.dirname(file), ...extraBinDirs(options.env?.HOME || os.homedir(), options.fsImpl || fs), process.env.PATH]
+              .filter(Boolean).join(path.delimiter),
+          },
+        })
+      : run
+    const probe = await probeAgentBin(resolved || agent.bin, probeRun)
     const models = probeAgentModels(agent.id, options)
     return {
       id: agent.id,

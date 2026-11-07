@@ -358,14 +358,19 @@ body[data-ds-dark-theme] [data-composer-card] [class*="trailing"] button[class*=
   font-size: 13px;
   flex: none;
 }
-.omnimux-runtime-guide-art {
-  background:
-    radial-gradient(ellipse 90% 70% at 25% 18%, color-mix(in srgb, var(--dsw-alias-brand-primary, #7c3aed) 38%, transparent), transparent 70%),
-    radial-gradient(ellipse 80% 60% at 78% 68%, color-mix(in srgb, var(--dsw-alias-brand-primary, #7c3aed) 22%, transparent), transparent 75%),
-    linear-gradient(160deg,
-      color-mix(in srgb, var(--dsw-alias-brand-primary, #7c3aed) 30%, var(--dsw-alias-bg-base, #0b0b0d)),
-      var(--dsw-alias-bg-elevated, #161618) 62%,
-      var(--dsw-alias-bg-base, #0b0b0d));
+.omnimux-runtime-guide-skip {
+  display: flex;
+  margin-top: 4px;
+}
+.omnimux-runtime-guide-skip-button {
+  justify-content: flex-start;
+  width: 100%;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+.omnimux-runtime-guide-skip-button:hover {
+  color: var(--dsw-alias-label-primary);
+  text-decoration: underline;
 }
 .omnimux-runtime-guide-step {
   display: flex;
@@ -1766,7 +1771,254 @@ button[aria-label*="context used"] {
   white-space: nowrap;
 }
 
-${AGENT_PRESET_AVATAR_CSS}`
+/* First-run "use your own key" panel: text conversation model only */
+.omx-key-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.omx-key-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14)); /* exempt-ui03: 面板描边回退 */
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-1, rgba(255, 255, 255, 0.04)); /* exempt-ui03: 面板底色回退 */
+}
+.omx-key-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.omx-key-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+.omx-key-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.omx-key-chip {
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.16)); /* exempt-ui03: chip 描边回退 */
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.05)); /* exempt-ui03: chip 底色回退 */
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+}
+.omx-key-chip[aria-pressed='true'] {
+  border-color: var(--dsw-alias-label-primary, #ffffff); /* exempt-ui03: 选中 chip 描边回退 */
+  background: var(--dsw-alias-label-primary, #ffffff); /* exempt-ui03: 选中 chip 底色回退 */
+  color: var(--dsw-alias-bg-base, #0b0b0d); /* exempt-ui03: 选中 chip 文字回退 */
+}
+.omx-key-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.omx-key-label {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+.omx-key-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.omx-key-input-row > *:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.omx-key-reveal {
+  flex: none;
+  height: 28px;
+  padding: 0 8px;
+  color: var(--dsw-alias-label-secondary);
+}
+.omx-key-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.omx-key-actions button {
+  height: 32px;
+  padding: 0 20px;
+  border-radius: 10px;
+  background: var(--dsw-alias-label-primary, #ffffff); /* exempt-ui03: 继续按钮底色回退 */
+  color: var(--dsw-alias-bg-base, #0b0b0d); /* exempt-ui03: 继续按钮文字回退 */
+  font-size: 14px;
+  font-weight: 600;
+}
+.omx-key-panel [class*="InputField-control"] {
+  box-sizing: border-box;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.16)); /* exempt-ui03: 输入框描边回退 */
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.05)); /* exempt-ui03: 输入框底色回退 */
+}
+.omx-key-panel input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+}
+#omnimux-key-quick-fill,
+#omnimux-key-model {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.16)); /* exempt-ui03: 下拉框描边回退 */
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.05)); /* exempt-ui03: 下拉框底色回退 */
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+}
+@media (max-width: 720px) {
+  .omx-key-card { padding: 16px; }
+  .omx-key-chip { height: 32px; padding: 0 12px; }
+}
+
+${AGENT_PRESET_AVATAR_CSS}
+
+.omx-agent-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 22px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-1, rgba(255, 255, 255, 0.03));
+}
+.omx-agent-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.omx-agent-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+.omx-agent-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+.omx-agent-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.omx-agent-status {
+  min-width: 120px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.06));
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+.omx-agent-status.busy {
+  opacity: 0.7;
+}
+.omx-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.omx-agent-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 78px;
+  padding: 14px 16px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.omx-agent-card:hover {
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.035));
+  border-color: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.2));
+}
+.omx-agent-card.selected {
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.07));
+  border-color: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.24));
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.2));
+}
+.omx-agent-card.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.omx-agent-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-3, rgba(255, 255, 255, 0.08));
+  font-size: 17px;
+  font-weight: 700;
+}
+.omx-agent-card-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.omx-agent-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.omx-agent-version {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+  line-height: 1.3;
+}
+.omx-agent-model-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.omx-agent-model-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+.omx-agent-selected-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+.omx-agent-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+`
 
 export function injectHubStyles() {
   if (typeof document === 'undefined') return

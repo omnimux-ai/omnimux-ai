@@ -26,7 +26,7 @@ export function registerPublishRoutes(webServer, dispatcher) {
       const subPath = extractSubPath(url.pathname)
       if (method === 'POST') {
         try {
-          assertLocalWrite({ origin: header(req, 'origin'), referer: header(req, 'referer'), secFetchSite: header(req, 'sec-fetch-site') })
+          assertLocalWrite({ origin: header(req, 'origin'), referer: header(req, 'referer'), secFetchSite: header(req, 'sec-fetch-site'), host: header(req, 'host'), secure: Boolean(/** @type {{ encrypted?: boolean } | undefined} */ (req.socket)?.encrypted) })
         } catch {
           sendJson(res, 403, { error: 'not-local', message: 'cross-origin write refused' })
           return
@@ -46,6 +46,15 @@ export function registerPublishRoutes(webServer, dispatcher) {
       }
       if (method === 'GET' && subPath === '/records/detail') {
         sendJson(res, 200, await dispatcher.getRecord({ record_id: url.searchParams.get('id') || '', refresh: false }))
+        return
+      }
+      if (method === 'GET' && subPath === '/creator-info') {
+        try {
+          sendJson(res, 200, await dispatcher.creatorInfo({ account_id: url.searchParams.get('id') || '' }))
+        } catch (error) {
+          if (error instanceof PublishError) sendJson(res, STATUS_BY_CODE[error.code] ?? 400, { error: error.code, message: error.message })
+          else sendJson(res, 500, { error: 'internal', message: messageOf(error) })
+        }
         return
       }
       if (method === 'GET' && subPath === '/capabilities') {

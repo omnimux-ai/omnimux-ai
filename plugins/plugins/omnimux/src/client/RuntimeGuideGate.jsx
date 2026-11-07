@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from 'dsh-ui-kit'
-import { AgentPanel, ByokPanel } from './RuntimeModeSection.jsx'
+import { AgentPanel } from './RuntimeModeSection.jsx'
+import { TextKeyPanel } from './TextKeyPanel.jsx'
 import { describeRuntimeGuide } from './runtime-guide-view.js'
 import { injectHubStyles } from './styles.js'
 
@@ -47,11 +48,82 @@ export function RuntimeGuideGate({ t, scope }) {
 
   const [step, setStep] = useState('choose')
   const [busy, setBusy] = useState(false)
+  const [loggedIn, setLoggedIn] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
   const finishing = useRef(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  const finish = useCallback(async (mode) => {
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    let alive = true
+    const apply = (value) => { if (alive) setLoggedIn(value === true) }
+    let remoteSeq = 0
+    const readLocal = () => {
+      const auth = /** @type {any} */ (window).__omnimuxAuth
+      if (!auth) return false
+      // A truthy cached login is authoritative. A false answer may only mean
+      // the status cache is still cold, which is indistinguishable from
+      // "logged out" — fall through to the HTTP status read in that case.
+      if (typeof auth.isLoggedIn === 'function' && auth.isLoggedIn() === true) {
+        apply(true)
+        return true
+      }
+      if (typeof auth.peekCache === 'function') {
+        const peeked = auth.peekCache()
+        if (peeked && peeked.body && typeof peeked.body.logged_in === 'boolean') {
+          if (peeked.body.logged_in === true) {
+            apply(true)
+            return true
+          }
+          // A negative cache is not proof a later sign-in did not happen;
+          // the forced refresh below must still run.
+          apply(false)
+        }
+      }
+      return false
+    }
+    const readRemote = () => {
+      const seq = ++remoteSeq
+      const auth = /** @type {any} */ (window).__omnimuxAuth
+      // Force a fresh status read: getStatus() always hits HTTP while
+      // getStatusCached()/peekCache() may hold a negative entry with no TTL.
+      if (auth && typeof auth.getStatus === 'function') {
+        void auth.getStatus(false).then((result) => {
+          if (!alive || seq !== remoteSeq) return
+          const body = result && result.body
+          if (result && result.ok === true && body && typeof body.logged_in === 'boolean') {
+            apply(body.logged_in === true)
+            return
+          }
+          apply(false)
+        }).catch(() => {
+          if (alive && seq === remoteSeq && !(auth && typeof auth.isLoggedIn === 'function' && auth.isLoggedIn() === true)) apply(false)
+        })
+        return
+      }
+      if (typeof fetch !== 'function') return
+      void fetch('/omnimux/auth/status').then(async (response) => {
+        if (seq !== remoteSeq) return
+        if (!response.ok) { if (alive) apply(false); return }
+        const body = await response.json().catch(() => null)
+        if (alive && body && typeof body === 'object') apply(body.logged_in === true)
+      }).catch(() => { if (alive && seq === remoteSeq) apply(false) })
+    }
+    const positiveCache = readLocal()
+    if (!positiveCache) readRemote()
+    const auth = /** @type {any} */ (window).__omnimuxAuth
+    const stop = auth && typeof auth.subscribe === 'function' ? auth.subscribe(() => { readLocal(); readRemote() }) : undefined
+    const onFocus = () => { readRemote() }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      alive = false
+      if (typeof stop === 'function') stop()
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [])
+
+  const finish = useCallback(async (mode, options = {}) => {
     if (finishing.current) return
     finishing.current = true
     try {
@@ -64,6 +136,7 @@ export function RuntimeGuideGate({ t, scope }) {
         const body = await response.json().catch(() => ({}))
         throw new Error(typeof body.error === 'string' ? body.error : `HTTP ${response.status}`)
       }
+      if (options.dismiss === true) setDismissed(true)
     } catch (caught) {
       finishing.current = false
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -84,14 +157,14 @@ export function RuntimeGuideGate({ t, scope }) {
     void finish('official')
   }, [finish, t])
 
-  if (!ready || !guide.visible) return null
+  if (!ready || !guide.visible || dismissed) return null
   if (typeof document === 'undefined' || !document.body) return null
 
   return createPortal(
     (
       <div className="omnimux-login-gate-backdrop" data-omnimux-runtime-guide="">
         <div
-          className={`omnimux-runtime-guide-sheet${step === 'choose' ? '' : ' omnimux-runtime-guide-sheet--single'}`}
+          className="omnimux-runtime-guide-sheet omnimux-runtime-guide-sheet--single"
           role="dialog"
           aria-modal="true"
           aria-labelledby="omnimux-runtime-guide-headline"
@@ -108,9 +181,9 @@ export function RuntimeGuideGate({ t, scope }) {
                   variant="primary"
                   className="omnimux-login-gate-cta"
                   disabled={busy}
-                  onClick={startOfficial}
+                  onClick={loggedIn ? () => { void finish('official') } : startOfficial}
                 >
-                  {t('runtime.officialCta')}
+                  {loggedIn ? t('runtime.officialContinueLogged') : t('runtime.officialCta')}
                 </Button>
                 <div className="omnimux-runtime-guide-alt">
                   <Button variant="ghost" disabled={busy} onClick={() => { setError(''); setNotice(''); setStep('agent') }}>
@@ -122,7 +195,7 @@ export function RuntimeGuideGate({ t, scope }) {
                   </Button>
                 </div>
                 <div className="omnimux-runtime-guide-skip">
-                  <Button variant="ghost" disabled={busy} onClick={() => { void finish('official') }}>
+                  <Button variant="ghost" className="omnimux-runtime-guide-skip-button" disabled={busy} onClick={() => { void finish('official', { dismiss: true }) }}>
                     {t('runtime.skip')}
                   </Button>
                 </div>
@@ -162,12 +235,10 @@ export function RuntimeGuideGate({ t, scope }) {
                   {t('runtime.key')}
                 </h2>
                 <p className="omnimux-login-gate-subdeck">{t('runtime.keyHint')}</p>
-                <ByokPanel
+                <TextKeyPanel
                   t={t}
-                  value={value}
                   busy={busy}
                   setBusy={setBusy}
-                  error={error}
                   setError={setError}
                   notice={notice}
                   setNotice={setNotice}
@@ -180,7 +251,6 @@ export function RuntimeGuideGate({ t, scope }) {
             {error ? <p className="omnimux-login-gate-error">{error}</p> : null}
             {notice ? <p className="omnimux-models-card__desc">{notice}</p> : null}
           </section>
-          {step === 'choose' ? <div className="omnimux-runtime-guide-art" aria-hidden="true" /> : null}
         </div>
       </div>
     ),
