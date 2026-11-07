@@ -1,8 +1,8 @@
 {
   "component": "plugins",
   "source": "omnimux-ai/omnimux-dsh",
-  "commit": "c6003a7b9bb5a6b13cb150471606076d6a6559d9",
-  "exportedFiles": 4157,
+  "commit": "2b4c70ff57dc20d9c3c6a821e82bd7d2864655a6",
+  "exportedFiles": 4163,
   "submodules": [],
   "manifestSha256": "74ae5c1be9031ca94c545eac3794ee0a634d8b150051474e4e4c5d94b1704894"
 }
