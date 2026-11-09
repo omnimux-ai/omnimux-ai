@@ -1,3 +1,9 @@
+import type {
+  MediaRole,
+  PlaygroundOperation,
+  PlaygroundParamSchema,
+  PlaygroundParams,
+} from '../types'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,12 +23,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { vendorSubTaskFields } from './operation-matrix'
-import type {
-  MediaRole,
-  PlaygroundOperation,
-  PlaygroundParamSchema,
-  PlaygroundParams,
-} from '../types'
 import { submitParams } from './param-schema'
 
 /**
@@ -38,21 +38,36 @@ const WIRE_BY_SLOT: Record<string, { field: string; role?: MediaRole }> = {
   reference_images: { field: 'image_urls' },
   reference_videos: { field: 'video_urls' },
   reference_audios: { field: 'audio_urls' },
+  reference_image: { field: 'images' },
+  reference_audio: { field: 'audios' },
   source_videos: { field: 'video_urls' },
+  file: { field: 'file_url' },
+  url: { field: 'link_url' },
 }
+
+/** Fields that carry one URL rather than an array. */
+const SINGLE_URL_FIELDS = new Set(['file_url', 'link_url'])
 
 /** Frame roles are emitted in this order so first/last never swap. */
 const ROLE_ORDER: MediaRole[] = ['first_frame', 'last_frame']
 
 function mediaKeys(schema: PlaygroundParamSchema): string[] {
   return schema.controls
-    .filter((control) => control.kind === 'media')
+    .filter((control) => control.kind === 'media' || control.key === 'url')
     .map((control) => control.key)
 }
 
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === 'string')
+}
+
+/** URL values arrive as an array for uploads and a bare string for a link. */
+function urlList(value: unknown): string[] {
+  if (typeof value === 'string') {
+    return value.trim() === '' ? [] : [value]
+  }
+  return stringArray(value)
 }
 
 /**
@@ -80,7 +95,7 @@ export function toSubmitBody(
     const target = WIRE_BY_SLOT[key]
     if (!target) continue
 
-    const urls = stringArray(body[key])
+    const urls = urlList(body[key])
     delete body[key]
     if (urls.length === 0) continue
 
@@ -88,13 +103,22 @@ export function toSubmitBody(
       frames.set(target.role, urls)
       continue
     }
-    wireArrays.set(target.field, [...(wireArrays.get(target.field) ?? []), ...urls])
+    if (SINGLE_URL_FIELDS.has(target.field)) {
+      body[target.field] = urls[0]
+      continue
+    }
+    wireArrays.set(target.field, [
+      ...(wireArrays.get(target.field) ?? []),
+      ...urls,
+    ])
   }
 
-  const roleEntries = ROLE_ORDER.filter((role) => frames.has(role)).map((role) => ({
-    url: frames.get(role)?.[0] ?? '',
-    role,
-  }))
+  const roleEntries = ROLE_ORDER.filter((role) => frames.has(role)).map(
+    (role) => ({
+      url: frames.get(role)?.[0] ?? '',
+      role,
+    })
+  )
   const imageWithRoles = roleEntries.filter((entry) => entry.url !== '')
   if (imageWithRoles.length > 0) {
     body.image_with_roles = imageWithRoles

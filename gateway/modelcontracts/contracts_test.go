@@ -366,3 +366,617 @@ func TestApplySpecDirRefusesADirectoryWithNoSpecs(t *testing.T) {
 		t.Error("a refused directory must leave the embedded contracts in place")
 	}
 }
+
+// buildSpecDir writes specs into a temporary directory and projects them.
+func buildSpecDir(t *testing.T, files map[string]string) *Document {
+	t.Helper()
+	dir := t.TempDir()
+	for name, body := range files {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
+	}
+	doc, err := Build(dir)
+	require.NoError(t, err)
+	return doc
+}
+
+func operationByID(t *testing.T, contract Contract, operationID string) Operation {
+	t.Helper()
+	for _, operation := range contract.Operations {
+		if operation.ID == operationID {
+			return operation
+		}
+	}
+	t.Fatalf("%s has no operation %q", contract.ModelID, operationID)
+	return Operation{}
+}
+
+func TestEveryBuiltContractCarriesSchemaAndContentVersion(t *testing.T) {
+	doc, err := Build(specDir)
+	require.NoError(t, err)
+	require.Equal(t, SchemaVersion, doc.SchemaVersion)
+	require.NotEmpty(t, doc.Models)
+
+	for id, contract := range doc.Models {
+		assert.Equal(t, SchemaVersion, contract.SchemaVersion, id)
+		assert.Regexp(t, `^[0-9a-f]{16}$`, contract.ContractVersion, id)
+
+		// The version must be reproducible from the contract itself with the
+		// field excluded, and no other field may change it accidentally.
+		recomputed, err := contractVersion(contract)
+		require.NoError(t, err)
+		assert.Equal(t, recomputed, contract.ContractVersion, id)
+	}
+}
+
+func TestContractVersionChangesWhenTheContractChanges(t *testing.T) {
+	contract := Contract{
+		ModelID:       "probe",
+		SchemaVersion: SchemaVersion,
+		Family:        "llm",
+		Operations:    []Operation{},
+	}
+	first, err := contractVersion(contract)
+	require.NoError(t, err)
+	require.NotEmpty(t, first)
+
+	firstAgain, err := contractVersion(contract)
+	require.NoError(t, err)
+	assert.Equal(t, first, firstAgain, "version must be deterministic")
+
+	contract.ServiceNotes = "changed"
+	second, err := contractVersion(contract)
+	require.NoError(t, err)
+	assert.NotEqual(t, first, second, "a content change must move the contract version")
+}
+
+func TestEveryOperationHasIDOutputAndUniqueIDs(t *testing.T) {
+	doc, err := Build(specDir)
+	require.NoError(t, err)
+	for id, contract := range doc.Models {
+		require.NotEmpty(t, contract.Operations, "%s carries no operation", id)
+		seen := make(map[string]bool, len(contract.Operations))
+		for _, operation := range contract.Operations {
+			assert.NotEmpty(t, operation.ID, "%s has an operation without an id", id)
+			assert.False(t, seen[operation.ID], "%s repeats operation %q", id, operation.ID)
+			seen[operation.ID] = true
+			assert.NotEmpty(t, operation.Output.Type, "%s/%s has no output type", id, operation.ID)
+			assert.NotNil(t, operation.Inputs, "%s/%s inputs must be an array", id, operation.ID)
+			assert.NotNil(t, operation.Parameters, "%s/%s parameters must be an array", id, operation.ID)
+		}
+		require.Len(t, contract.OperationIDs, len(contract.Operations))
+		for index, operation := range contract.Operations {
+			assert.Equal(t, operation.ID, contract.OperationIDs[index])
+		}
+	}
+}
+
+func TestUnknownsRecordNullFamilyAxesAndOperationGaps(t *testing.T) {
+	video := buildSpecDir(t, map[string]string{
+		"seedance-2-5.json": `{
+			"model_id": "seedance-2-5",
+			"family": "video",
+			"status": "documented",
+			"operations": ["text_to_video", "first_frame"],
+			"gateway": {"profile": "apimart_video", "operations": ["text_to_video", "first_frame"]},
+			"durations_seconds": {"min": null, "max": null},
+			"resolutions": null,
+			"aspect_ratios": null,
+			"prompt_max_chars": null
+		}`,
+	})
+	contract := video.Models["seedance-2-5"]
+	for _, path := range []string{
+		"durations_seconds.min",
+		"durations_seconds.max",
+		"resolutions",
+		"aspect_ratios",
+		"prompt_max_chars",
+		"operations.first_frame.parameters.duration",
+	} {
+		assert.Contains(t, contract.Unknowns, path)
+	}
+
+	image := buildSpecDir(t, map[string]string{
+		"probe-image.json": `{
+			"model_id": "probe-image",
+			"family": "image",
+			"status": "documented",
+			"operations": ["image_to_image"],
+			"reference_images": {"max": null, "min": 0, "formats": ["png"], "max_bytes_each": null},
+			"output_sizes": null
+		}`,
+	})
+	assert.Contains(t, image.Models["probe-image"].Unknowns, "reference_images.max")
+	assert.Contains(t, image.Models["probe-image"].Unknowns, "reference_images.max_bytes_each")
+	assert.Contains(t, image.Models["probe-image"].Unknowns, "output_sizes")
+}
+
+func TestApimartVideoProfileExpandsExecutableOperations(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"seedance-2-5.json": `{
+			"model_id": "seedance-2-5",
+			"family": "video",
+			"status": "documented",
+			"operations": ["text_to_video", "first_frame", "first_last_frame", "video_multi_ref", "video_edit", "video_extend"],
+			"gateway": {
+				"profile": "apimart_video",
+				"operations": ["text_to_video", "first_frame", "first_last_frame", "video_multi_ref", "video_edit", "video_extend"]
+			},
+			"durations_seconds": {"min": 4, "max": 30},
+			"resolutions": ["480p", "720p", "1080p"],
+			"aspect_ratios": ["16:9", "9:16", "adaptive"],
+			"reference_images": {"min": 1, "max": 30, "formats": ["image/jpeg", "image/png"], "max_bytes_each": 31457280},
+			"reference_videos": {"min": 0, "max": 10, "formats": ["video/mp4"], "max_bytes_each": 209715200},
+			"reference_audios": {"min": 0, "max": 10, "formats": ["audio/wav"], "max_bytes_each": 15728640},
+			"output_formats": ["mp4", "mov"]
+		}`,
+	})
+	contract := doc.Models["seedance-2-5"]
+	require.Equal(t, []string{"text_to_video", "first_frame", "first_last_frame", "video_multi_ref", "video_edit", "video_extend"}, contract.OperationIDs)
+	for _, operation := range contract.Operations {
+		assert.True(t, operation.Executable, operation.ID)
+		assert.Equal(t, "video", operation.Output.Type)
+	}
+
+	firstFrame := operationByID(t, contract, "first_frame")
+	require.Len(t, firstFrame.Inputs, 2)
+	assert.Equal(t, "prompt", firstFrame.Inputs[0].Slot)
+	assert.Equal(t, "first_frame", firstFrame.Inputs[1].Slot)
+	assert.True(t, firstFrame.Inputs[1].Required)
+	require.NotNil(t, firstFrame.Inputs[1].Min)
+	require.NotNil(t, firstFrame.Inputs[1].Max)
+	assert.Equal(t, 1, *firstFrame.Inputs[1].Min)
+	assert.Equal(t, 1, *firstFrame.Inputs[1].Max)
+	assert.Equal(t, []string{"image/jpeg", "image/png"}, firstFrame.Inputs[1].AllowedMimes)
+	require.NotNil(t, firstFrame.Inputs[1].MaxSizeMb)
+	assert.Equal(t, 30.0, *firstFrame.Inputs[1].MaxSizeMb)
+
+	multiRef := operationByID(t, contract, "video_multi_ref")
+	require.Len(t, multiRef.Inputs, 4)
+	assert.Equal(t, "reference_images", multiRef.Inputs[1].Slot)
+	require.NotNil(t, multiRef.Inputs[1].Max)
+	assert.Equal(t, 30, *multiRef.Inputs[1].Max)
+
+	edit := operationByID(t, contract, "video_edit")
+	var editDuration *Parameter
+	var editAspect *Parameter
+	for index := range edit.Parameters {
+		switch edit.Parameters[index].Name {
+		case "duration":
+			editDuration = &edit.Parameters[index]
+		case "aspect_ratio":
+			editAspect = &edit.Parameters[index]
+		}
+	}
+	require.NotNil(t, editDuration)
+	require.NotNil(t, editDuration.Minimum)
+	require.NotNil(t, editDuration.Maximum)
+	assert.Equal(t, -1.0, *editDuration.Minimum)
+	assert.Equal(t, -1.0, *editDuration.Maximum)
+	assert.Equal(t, -1, editDuration.Default)
+	require.NotNil(t, editAspect)
+	assert.Equal(t, "adaptive", editAspect.Fixed)
+}
+
+func TestFalH3VideoProfileExpandsExecutableOperations(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"probe-fal.json": `{
+			"model_id": "probe-fal",
+			"family": "video",
+			"status": "documented",
+			"operations": ["text_to_video", "first_frame", "video_multi_ref"],
+			"gateway": {"profile": "fal_h3_video", "operations": ["text_to_video", "first_frame", "video_multi_ref"]},
+			"durations_seconds": {"min": 5, "max": 10, "allowed": [5, 10]},
+			"resolutions": ["480P", "768P"],
+			"aspect_ratios": ["16:9", "9:16"],
+			"reference_images": {"min": 0, "max": 9},
+			"reference_videos": {"min": 0, "max": 3},
+			"reference_audios": {"min": 0, "max": 3}
+		}`,
+	})
+	contract := doc.Models["probe-fal"]
+	assert.Equal(t, []string{"text_to_video", "first_frame", "video_multi_ref"}, contract.OperationIDs)
+	firstFrame := operationByID(t, contract, "first_frame")
+	require.Len(t, firstFrame.Inputs, 2)
+	require.NotNil(t, firstFrame.Inputs[1].Min)
+	require.NotNil(t, firstFrame.Inputs[1].Max)
+	assert.Equal(t, 1, *firstFrame.Inputs[1].Min)
+	assert.Equal(t, 1, *firstFrame.Inputs[1].Max)
+	multiRef := operationByID(t, contract, "video_multi_ref")
+	assert.Len(t, multiRef.Inputs, 4, "prompt plus image, video and audio reference slots")
+}
+
+func TestAutoDLH3VideoProfileExpandsItsOwnWorkflows(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"minimax-h3-video.json": `{
+			"model_id": "minimax-h3-video",
+			"family": "video",
+			"status": "documented",
+			"operations": ["text_to_video", "first_last_frame", "video_multi_ref", "digital_human"],
+			"gateway": {"profile": "autodl_h3_video", "operations": ["text_to_video", "first_last_frame", "video_multi_ref", "digital_human"]},
+			"durations_seconds": {"min": 1, "max": 15},
+			"resolutions": ["480p", "736p", "768p", "1088p", "1440p"],
+			"aspect_ratios": ["16:9", "9:16", "1:1"],
+			"reference_images": {"min": 0, "max": 9},
+			"reference_audios": {"min": 0, "max": 3}
+		}`,
+	})
+	contract := doc.Models["minimax-h3-video"]
+	assert.Equal(t, []string{"text_to_video", "first_last_frame", "video_multi_ref", "digital_human"}, contract.OperationIDs)
+
+	multiRef := operationByID(t, contract, "video_multi_ref")
+	assert.Len(t, multiRef.Inputs, 3, "prompt, reference images and reference audios; this line has no reference videos")
+	for _, input := range multiRef.Inputs {
+		assert.NotEqual(t, "reference_videos", input.Slot)
+	}
+
+	digitalHuman := operationByID(t, contract, "digital_human")
+	require.Len(t, digitalHuman.Inputs, 2)
+	assert.Equal(t, "reference_image", digitalHuman.Inputs[0].Slot)
+	assert.Equal(t, "reference_audio", digitalHuman.Inputs[1].Slot)
+	assert.True(t, digitalHuman.Inputs[0].Required)
+	assert.True(t, digitalHuman.Inputs[1].Required)
+	for _, input := range digitalHuman.Inputs {
+		assert.NotEqual(t, "prompt", input.Slot, "the AutoDL lip-sync shape has no prompt slot")
+		require.NotNil(t, input.Min)
+		require.NotNil(t, input.Max)
+		assert.Equal(t, 1, *input.Min)
+		assert.Equal(t, 1, *input.Max)
+	}
+
+	// The shipped spec must resolve minimax-h3-video to its actual AutoDL
+	// supply, not the fal profile that was once recorded by mistake.
+	shipped, err := Build(specDir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"text_to_video", "first_last_frame", "video_multi_ref", "digital_human"}, shipped.Models["minimax-h3-video"].OperationIDs)
+}
+
+func TestImplicitFamilyProfilesUseRealOperationIDs(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"probe-image.json": `{
+			"model_id": "probe-image",
+			"family": "image",
+			"status": "documented",
+			"operations": ["text_to_image", "image_to_image"],
+			"reference_images": {"max": 2, "min": 1, "formats": ["image/png"], "max_bytes_each": 5242880},
+			"output_sizes": ["1024x1024"],
+			"output_formats": ["png"]
+		}`,
+		"probe-llm.json": `{
+			"model_id": "probe-llm",
+			"family": "llm",
+			"status": "documented",
+			"operations": ["chat_completion", "streaming"],
+			"input_modalities": ["text", "image", "pdf"],
+			"reference_images": {"formats": ["image/jpeg"]},
+			"context_window_tokens": 128000
+		}`,
+		"probe-data.json": `{
+			"model_id": "probe-data",
+			"family": "data",
+			"status": "documented",
+			"operations": ["fetch_post", "search_products"],
+			"endpoints": [{"name": "客户入口", "method": "POST", "path": "/v1/chat/completions"}],
+			"auth": "bearer"
+		}`,
+		"probe-asr.json": `{
+			"model_id": "probe-asr",
+			"family": "audio",
+			"status": "documented",
+			"operations": ["transcription", "translation"],
+			"audio_kind": "asr",
+			"input_formats": ["wav", "mp3"],
+			"max_input_bytes": 10485760,
+			"max_input_seconds": 300,
+			"output_formats": ["text"]
+		}`,
+		"probe-tts.json": `{
+			"model_id": "probe-tts",
+			"family": "audio",
+			"status": "documented",
+			"operations": ["text_to_speech", "voice_clone", "emotion_control"],
+			"audio_kind": "tts",
+			"reference_audios": {"min": 0, "max": 2, "formats": ["wav"]},
+			"output_formats": ["wav"]
+		}`,
+	})
+
+	image := doc.Models["probe-image"]
+	assert.Equal(t, []string{"text_to_image", "image_to_image"}, image.OperationIDs)
+	textToImage := operationByID(t, image, "text_to_image")
+	assert.Len(t, textToImage.Inputs, 1, "text_to_image consumes only the prompt")
+	imageToImage := operationByID(t, image, "image_to_image")
+	require.Len(t, imageToImage.Inputs, 2)
+	assert.Equal(t, "reference_image", imageToImage.Inputs[1].Slot)
+	require.NotNil(t, imageToImage.Inputs[1].Min)
+	require.NotNil(t, imageToImage.Inputs[1].Max)
+	assert.Equal(t, 1, *imageToImage.Inputs[1].Min)
+	assert.Equal(t, 2, *imageToImage.Inputs[1].Max)
+
+	llm := doc.Models["probe-llm"]
+	assert.Equal(t, []string{"chat"}, llm.OperationIDs)
+	chat := llm.Operations[0]
+	assert.Equal(t, "text", chat.Output.Type)
+	var slots []string
+	for _, input := range chat.Inputs {
+		slots = append(slots, input.Slot)
+	}
+	assert.Equal(t, []string{"prompt", "image", "pdf"}, slots)
+
+	data := doc.Models["probe-data"]
+	assert.Equal(t, []string{"fetch_post", "search_products"}, data.OperationIDs)
+	for _, operation := range data.Operations {
+		assert.Equal(t, "text", operation.Output.Type)
+	}
+	assert.Contains(t, data.Unknowns, "operations.fetch_post.parameters")
+
+	asr := doc.Models["probe-asr"]
+	assert.Equal(t, []string{"speech_to_text", "translation"}, asr.OperationIDs)
+	for _, operation := range asr.Operations {
+		assert.Equal(t, "text", operation.Output.Type)
+	}
+	require.Len(t, asr.Operations[0].Inputs, 1)
+	assert.Equal(t, "audio", asr.Operations[0].Inputs[0].Slot)
+
+	tts := doc.Models["probe-tts"]
+	assert.Equal(t, []string{"text_to_speech", "voice_clone", "emotion_control"}, tts.OperationIDs)
+	for _, operation := range tts.Operations {
+		assert.Equal(t, "audio", operation.Output.Type)
+	}
+}
+
+func TestVideoWithoutGatewayFallsBackToNonExecutableCanonicalOperations(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"probe-video.json": `{
+			"model_id": "probe-video",
+			"family": "video",
+			"status": "documented",
+			"operations": ["text_to_video", "image_to_video", "reference_to_video", "first_last_frame_to_video"],
+			"durations_seconds": {"min": 3, "max": 15},
+			"resolutions": ["720p"]
+		}`,
+	})
+	contract := doc.Models["probe-video"]
+	assert.Equal(t, []string{"text_to_video", "first_frame", "video_multi_ref", "first_last_frame"}, contract.OperationIDs)
+	for _, operation := range contract.Operations {
+		assert.False(t, operation.Executable, operation.ID)
+		assert.Empty(t, operation.Inputs)
+		assert.Empty(t, operation.Parameters)
+		assert.Equal(t, "video", operation.Output.Type)
+	}
+	assert.Contains(t, contract.Unknowns, "operations.first_frame.inputs")
+}
+
+func TestBuildRejectsUnknownGatewayProfile(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "bad.json"), []byte(`{
+		"model_id": "seedance-2-5",
+		"family": "video",
+		"status": "documented",
+		"operations": ["text_to_video"],
+		"gateway": {"profile": "not_a_profile", "operations": ["text_to_video"]}
+	}`), 0o600))
+	_, err := Build(dir)
+	require.Error(t, err)
+	var specErr *SpecError
+	require.ErrorAs(t, err, &specErr)
+	assert.Equal(t, "bad.json", specErr.File)
+	assert.Contains(t, err.Error(), "unknown gateway profile")
+}
+
+func TestBuildRejectsUnknownAndDisallowedOperations(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "unknown operation",
+			body: `{
+				"model_id": "seedance-2-5",
+				"family": "video",
+				"status": "documented",
+				"operations": ["text_to_video"],
+				"gateway": {"profile": "apimart_video", "operations": ["text_to_video", "no_such_operation"]}
+			}`,
+			want: "unknown operation",
+		},
+		{
+			name: "operation not allowed for model",
+			body: `{
+				"model_id": "seedance-2-0",
+				"family": "video",
+				"status": "documented",
+				"operations": ["text_to_video"],
+				"gateway": {"profile": "apimart_video", "operations": ["text_to_video", "video_edit"]}
+			}`,
+			want: "not allowed",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "bad.json"), []byte(testCase.body), 0o600))
+			_, err := Build(dir)
+			require.Error(t, err)
+			var specErr *SpecError
+			require.ErrorAs(t, err, &specErr)
+			assert.Equal(t, "bad.json", specErr.File)
+			assert.Contains(t, err.Error(), testCase.want)
+		})
+	}
+}
+
+func TestBuildRejectsDuplicateGatewayOperations(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "bad.json"), []byte(`{
+		"model_id": "seedance-2-5",
+		"family": "video",
+		"status": "documented",
+		"operations": ["text_to_video"],
+		"gateway": {"profile": "apimart_video", "operations": ["text_to_video", "text_to_video"]}
+	}`), 0o600))
+	_, err := Build(dir)
+	require.Error(t, err)
+	var specErr *SpecError
+	require.ErrorAs(t, err, &specErr)
+	assert.Equal(t, "bad.json", specErr.File)
+	assert.Contains(t, err.Error(), "duplicate")
+}
+
+func TestOperationJSONPublishesEmptyArraysNotNull(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"probe-video.json": `{
+			"model_id": "probe-video",
+			"family": "video",
+			"status": "documented",
+			"operations": ["text_to_video"],
+			"durations_seconds": {"min": 1, "max": 2},
+			"resolutions": ["720p"]
+		}`,
+	})
+	body, err := common.Marshal(doc.Models["probe-video"].Operations[0])
+	require.NoError(t, err)
+	var published map[string]any
+	require.NoError(t, common.Unmarshal(body, &published))
+	assert.Equal(t, []any{}, published["inputs"])
+	assert.Equal(t, []any{}, published["parameters"])
+}
+
+func TestNewModelsInAnEstablishedFamilyNeedOnlyASpec(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"newcomer-llm.json": `{
+			"model_id": "newcomer-llm",
+			"family": "llm",
+			"status": "documented",
+			"operations": ["chat_completion"],
+			"input_modalities": ["text"],
+			"context_window_tokens": 64000
+		}`,
+		"newcomer-image.json": `{
+			"model_id": "newcomer-image",
+			"family": "image",
+			"status": "documented",
+			"operations": ["text_to_image"],
+			"reference_images": {"max": 1, "min": 0, "formats": ["png"], "max_bytes_each": 5242880},
+			"output_sizes": ["1024x1024"]
+		}`,
+	})
+	llm, ok := doc.Models["newcomer-llm"]
+	require.True(t, ok)
+	assert.Equal(t, []string{"chat"}, llm.OperationIDs)
+	assert.NotEmpty(t, llm.ContractVersion)
+
+	image, ok := doc.Models["newcomer-image"]
+	require.True(t, ok)
+	assert.Equal(t, []string{"text_to_image"}, image.OperationIDs)
+	assert.NotEmpty(t, image.ContractVersion)
+}
+
+func TestToolFieldsSurviveProjectionUnderTheirPublishedTypes(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"probe-llm.json": `{
+			"model_id": "probe-llm",
+			"family": "llm",
+			"status": "documented",
+			"operations": ["chat_completion"],
+			"input_modalities": ["text"],
+			"context_window_tokens": 128000,
+			"tool_calling": true,
+			"streaming": false,
+			"prompt_caching": true
+		}`,
+		"probe-audio.json": `{
+			"model_id": "probe-audio",
+			"family": "audio",
+			"status": "documented",
+			"operations": ["text_to_speech"],
+			"audio_kind": "tts",
+			"input_formats": ["wav", "mp3"],
+			"max_input_bytes": 10485760,
+			"max_input_seconds": 30,
+			"max_output_seconds": 120,
+			"voices": 3,
+			"languages": ["English", "Chinese"],
+			"output_formats": ["wav"]
+		}`,
+		"probe-data.json": `{
+			"model_id": "probe-data",
+			"family": "data",
+			"status": "documented",
+			"operations": ["fetch_post"],
+			"endpoints": [{"name": "客户入口", "method": "POST", "path": "/v1/chat/completions"}],
+			"auth": "bearer",
+			"rate_limit": null,
+			"pagination": "cursor",
+			"response_fields": ["id", "url"]
+		}`,
+	})
+
+	llm := doc.Models["probe-llm"]
+	require.NotNil(t, llm.ToolCalling)
+	require.NotNil(t, llm.Streaming)
+	assert.True(t, *llm.ToolCalling)
+	assert.False(t, *llm.Streaming, "a declared false must survive as a pointer, not be omitted")
+	require.NotNil(t, llm.PromptCaching)
+	assert.True(t, *llm.PromptCaching)
+
+	audio := doc.Models["probe-audio"]
+	assert.Equal(t, "tts", audio.AudioKind)
+	assert.Equal(t, []string{"wav", "mp3"}, audio.InputFormats)
+	require.NotNil(t, audio.MaxInputBytes)
+	assert.EqualValues(t, 10485760, *audio.MaxInputBytes)
+	require.NotNil(t, audio.MaxInputSeconds)
+	assert.Equal(t, 30, *audio.MaxInputSeconds)
+	require.NotNil(t, audio.MaxOutputSeconds)
+	assert.Equal(t, 120, *audio.MaxOutputSeconds)
+	require.NotNil(t, audio.Voices)
+	assert.Equal(t, 3, *audio.Voices)
+	assert.Equal(t, []string{"English", "Chinese"}, audio.Languages)
+
+	data := doc.Models["probe-data"]
+	require.Len(t, data.Endpoints, 1)
+	assert.Equal(t, "POST", data.Endpoints[0].Method)
+	assert.Equal(t, "bearer", data.Auth)
+	assert.Equal(t, "cursor", data.Pagination)
+	assert.Equal(t, []string{"id", "url"}, data.ResponseFields)
+}
+
+func TestNonNumericVoicesAndNonStringLanguagesStayUnpublished(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"probe-audio.json": `{
+			"model_id": "probe-audio",
+			"family": "audio",
+			"status": "documented",
+			"operations": ["text_to_speech"],
+			"audio_kind": "tts",
+			"voices": "支持男女声智能匹配",
+			"languages": "提示词支持中、英等多语言描述",
+			"output_formats": ["wav"]
+		}`,
+	})
+	contract := doc.Models["probe-audio"]
+	assert.Nil(t, contract.Voices, "a prose voice description is not a numeric voice count")
+	assert.Nil(t, contract.Languages, "a prose language description is not a string array")
+}
+
+func TestShippedPayloadStaysUnderSizeBudget(t *testing.T) {
+	info, err := os.Stat("contracts.json")
+	require.NoError(t, err)
+	const budget = 1536 * 1024 // 1.5 MiB
+	assert.LessOrEqual(t, info.Size(), int64(budget), "contracts.json must stay at or below 1.5 MB")
+}
+
+func TestVersionReturnsAnAlreadyComputedDocumentVersion(t *testing.T) {
+	doc := &Document{
+		SchemaVersion: SchemaVersion,
+		Version:       "0123456789abcdef",
+		Models: map[string]Contract{
+			"unrelated": {ModelID: "unrelated", SchemaVersion: SchemaVersion},
+		},
+	}
+	assert.Equal(t, "0123456789abcdef", Version(doc), "the fast path must not re-hash a loaded document")
+
+	fresh := &Document{SchemaVersion: SchemaVersion, Models: doc.Models}
+	assert.NotEmpty(t, Version(fresh))
+}

@@ -14,6 +14,7 @@ import (
 )
 
 const RefreshCookieName = "new_api_refresh"
+const SecureRefreshCookieName = "__Host-new_api_refresh"
 
 // SessionHintCookieName is the script-readable companion to RefreshCookieName.
 // See writeSessionHintCookie for why it exists and what it is not.
@@ -322,6 +323,45 @@ func ListLoginSessions(userID int, currentSID string) ([]LoginSessionView, error
 	return views, nil
 }
 
+func refreshCookieName() string {
+	if common.SessionCookieSecure {
+		return SecureRefreshCookieName
+	}
+	return RefreshCookieName
+}
+
+func refreshCookiePath() string {
+	if common.SessionCookieSecure {
+		return "/"
+	}
+	return "/api/user/auth"
+}
+
+// ReadRefreshCookie returns the one refresh cookie this deployment may accept.
+// A duplicate same-name header is rejected rather than letting http.Request's
+// first-cookie behavior choose an attacker-controlled sibling-domain value.
+func ReadRefreshCookie(c *gin.Context) (string, error) {
+	if c == nil || c.Request == nil {
+		return "", ErrRefreshTokenInvalid
+	}
+	name := refreshCookieName()
+	count := 0
+	for part := range strings.SplitSeq(strings.Join(c.Request.Header.Values("Cookie"), ";"), ";") {
+		key, _, _ := strings.Cut(strings.TrimSpace(part), "=")
+		if key == name {
+			count++
+		}
+	}
+	if count != 1 {
+		return "", ErrRefreshTokenInvalid
+	}
+	value, err := c.Cookie(name)
+	if err != nil || strings.TrimSpace(value) == "" {
+		return "", ErrRefreshTokenInvalid
+	}
+	return value, nil
+}
+
 func WriteRefreshCookie(c *gin.Context, rawToken string) {
 	expiresAt := time.Now().Add(LoginSessionTTL)
 	if sid, _, ok := splitRefreshToken(rawToken); ok {
@@ -331,9 +371,9 @@ func WriteRefreshCookie(c *gin.Context, rawToken string) {
 	}
 	maxAge := max(int(time.Until(expiresAt)/time.Second), 1)
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     RefreshCookieName,
+		Name:     refreshCookieName(),
 		Value:    rawToken,
-		Path:     "/api/user/auth",
+		Path:     refreshCookiePath(),
 		MaxAge:   maxAge,
 		Expires:  expiresAt,
 		HttpOnly: true,
@@ -344,6 +384,20 @@ func WriteRefreshCookie(c *gin.Context, rawToken string) {
 }
 
 func ClearRefreshCookie(c *gin.Context) {
+	if common.SessionCookieSecure {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     SecureRefreshCookieName,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			Expires:  time.Unix(1, 0),
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
+	// Also retire the legacy host-scoped name so a deploy that enables secure
+	// cookies does not leave an old token chooseable by another browser path.
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     RefreshCookieName,
 		Value:    "",
@@ -359,7 +413,7 @@ func ClearRefreshCookie(c *gin.Context) {
 
 // writeSessionHintCookie mirrors the Refresh Cookie's lifetime with a
 // script-readable marker. The Refresh Cookie itself is HttpOnly and scoped to
-// /api/user/auth, so a page at / cannot tell whether a login session exists;
+// /api/user/auth in local mode and / in secure __Host- mode, so a page at / cannot tell whether a login session exists;
 // without this hint the frontend has to POST /api/user/auth/refresh on every
 // cold boot just to learn that an anonymous visitor is anonymous. That request
 // is guaranteed to 401 and still consumes a slot of the IP-keyed

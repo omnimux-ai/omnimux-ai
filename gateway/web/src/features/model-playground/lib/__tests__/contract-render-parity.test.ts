@@ -22,24 +22,32 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import type { ModelFamily, PricingModel } from '@/features/pricing/types'
+import type {
+  ContractOperation,
+  ModelContract,
+  ModelFamily,
+  PricingModel,
+} from '@/features/pricing/types'
 
-import { buildParamSchema } from '../param-schema'
+import { contractOperations, executableOperations } from '../contract-schema'
+import { operationsFor } from '../operation-matrix'
+import { buildOperationSchema, buildParamSchema } from '../param-schema'
 
 /**
  * The page must not deviate from the published contract.
  *
  * `modelcontracts/contracts.json` is the projection the gateway ships, generated
- * from the governance specs and drift-gated in Go. Nothing until now compared it
- * against what the form generator actually renders, so a hand-written table could
- * quietly disagree with the contract the catalog publishes. This is that gate: for
- * every model the payload covers, whatever axis it declares must be the axis the
- * form offers.
- *
- * An axis the contract does not declare is deliberately NOT asserted — the form is
- * allowed its previous behaviour there, and asserting otherwise would be inventing
- * a requirement.
+ * from the governance specs and drift-gated in Go. This gate compares every
+ * executable operation's inputs and parameters against the controls the form
+ * actually renders. It runs once the payload carries Contract v2 object
+ * operations; a v1 projection has no operation schema to compare, so the gate
+ * stays skipped rather than asserting against data that does not exist.
  */
+type ContractDocument = {
+  schemaVersion?: string
+  models: Record<string, ModelContract>
+}
+
 const payload = JSON.parse(
   readFileSync(
     resolve(
@@ -49,29 +57,14 @@ const payload = JSON.parse(
     ),
     'utf8'
   )
-) as {
-  models: Record<
-    string,
-    {
-      model_id: string
-      family?: string
-      resolutions?: string[]
-      aspect_ratios?: string[]
-      output_formats?: string[]
-    }
-  >
-}
+) as ContractDocument
+
+const isV2 = payload.schemaVersion === '2.0'
 
 /** Families whose form this generator serves. */
-const FORM_FAMILIES = new Set(['video', 'image'])
+const FORM_FAMILIES = new Set<ModelFamily>(['video', 'image'])
 
-function modelFor(contract: {
-  model_id: string
-  family?: string
-  resolutions?: string[]
-  aspect_ratios?: string[]
-  output_formats?: string[]
-}): PricingModel {
+function modelFor(contract: ModelContract): PricingModel {
   return {
     id: 1,
     model_name: contract.model_id,
@@ -81,133 +74,264 @@ function modelFor(contract: {
     completion_ratio: 0,
     enable_groups: ['default'],
     tags: contract.family === 'video' ? 'Video Generation' : 'Image Generation',
-    contract: { ...contract, family: contract.family as ModelFamily },
+    contract,
   }
 }
 
-function declaredSubjects() {
+function formSubjects(): ModelContract[] {
   return Object.values(payload.models).filter(
-    (contract) =>
-      contract.family !== undefined && FORM_FAMILIES.has(contract.family)
+    (contract) => contract.family && FORM_FAMILIES.has(contract.family)
   )
 }
 
-function valuesOf(schema: ReturnType<typeof buildParamSchema>, key: string) {
-  return schema.controls
-    .find((control) => control.key === key)
-    ?.options?.map((option) => option.value)
+/** Bare contract formats sometimes arrive as extensions; the form uses MIME. */
+const MIME_BY_FORMAT: Record<string, string> = {
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  tiff: 'image/tiff',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  quicktime: 'video/quicktime',
+  wav: 'audio/wav',
+  mp3: 'audio/mpeg',
 }
 
-/**
- * Deviations recorded on 2026-09-14, when this gate was first run.
- *
- * The gate asserts the computed set is a SUBSET of these, so a new deviation
- * fails the suite while the existing ones stay visible instead of being averaged
- * away. Fixing one is allowed and needs no edit here; deleting a line only
- * tightens the gate.
- *
- * These are the page's remaining hand-written domains outliving the contract —
- * the follow-up work this gate exists to track.
- */
-const KNOWN_DEVIATIONS: Record<string, string[]> = {
-  // Empty on purpose, and it must stay that way: every axis the contract
-  // declares is rendered from the contract. The gate's first run reported 33 ids,
-  // but it built the models without their contract, so it measured the fallback
-  // path — an artefact of the test, not a defect in the form.
-  resolution: [],
-  aspect_ratio: [],
-  output_format: [],
+function asMime(value: string): string {
+  const token = value.trim().toLowerCase()
+  return token.includes('/') ? token : (MIME_BY_FORMAT[token] ?? token)
 }
 
-/** Model ids whose rendered values differ from the contract, for one axis. */
-function deviatingIds(
-  contractKey: 'resolutions' | 'aspect_ratios' | 'output_formats',
-  controlKey: string
-): string[] {
-  const ids: string[] = []
-  for (const contract of Object.values(payload.models)) {
-    if (!contract.family || !FORM_FAMILIES.has(contract.family)) continue
-    const declared = contract[contractKey]
-    if (!declared?.length) continue
-    const rendered =
-      valuesOf(buildParamSchema(modelFor(contract)), controlKey) ?? []
-    if (rendered.join(',') !== declared.join(',')) {
-      ids.push(contract.model_id)
-    }
+function expectParameterRendered(
+  control: ReturnType<typeof buildParamSchema>['controls'][number] | undefined,
+  parameter: ContractOperation['parameters'][number],
+  subject: string
+) {
+  expect(
+    control,
+    `${subject}: missing parameter ${parameter.name}`
+  ).toBeDefined()
+  if (!control) return
+
+  if (parameter.fixed !== undefined) {
+    expect(
+      control.lockedReasonKey,
+      `${subject}: ${parameter.name} not locked`
+    ).toBeTruthy()
+    expect(
+      String(control.defaultValue),
+      `${subject}: ${parameter.name} fixed value`
+    ).toBe(String(parameter.fixed))
+    return
   }
-  return ids.sort()
+
+  if (parameter.type === 'enum') {
+    expect(
+      control.options?.map((option) => option.value),
+      `${subject}: ${parameter.name} enum`
+    ).toEqual((parameter.enum ?? []).map((value) => String(value)))
+    if (parameter.default !== undefined) {
+      expect(
+        String(control.defaultValue),
+        `${subject}: ${parameter.name} default`
+      ).toBe(String(parameter.default))
+    }
+    return
+  }
+
+  if (parameter.type === 'integer' || parameter.type === 'number') {
+    expect(control.kind, `${subject}: ${parameter.name} control`).toBe('slider')
+    expect(control.min, `${subject}: ${parameter.name} minimum`).toBe(
+      parameter.minimum
+    )
+    expect(control.max, `${subject}: ${parameter.name} maximum`).toBe(
+      parameter.maximum
+    )
+    if (parameter.step !== undefined) {
+      expect(control.step, `${subject}: ${parameter.name} step`).toBe(
+        parameter.step
+      )
+    }
+    if (parameter.default !== undefined) {
+      expect(
+        control.defaultValue,
+        `${subject}: ${parameter.name} default`
+      ).toBe(parameter.default)
+    }
+    return
+  }
+
+  if (parameter.type === 'boolean') {
+    expect(control.kind, `${subject}: ${parameter.name} control`).toBe('switch')
+    expect(control.defaultValue, `${subject}: ${parameter.name} default`).toBe(
+      parameter.default ?? false
+    )
+  }
 }
 
-describe('the rendered form and the published contract agree', () => {
-  it('has contracts to compare', () => {
-    expect(declaredSubjects().length).toBeGreaterThan(0)
-  })
+const describeContractParity = isV2 ? describe : describe.skip
 
-  it('introduces no new resolution deviation', () => {
-    const known = new Set(KNOWN_DEVIATIONS.resolution)
-    expect(
-      deviatingIds('resolutions', 'resolution').filter((id) => !known.has(id))
-    ).toEqual([])
-  })
-
-  it('introduces no new aspect-ratio deviation', () => {
-    const known = new Set(KNOWN_DEVIATIONS.aspect_ratio)
-    expect(
-      deviatingIds('aspect_ratios', 'aspect_ratio').filter(
-        (id) => !known.has(id)
+describeContractParity(
+  'the rendered form and the published contract agree',
+  () => {
+    it('has Contract v2 operations to compare', () => {
+      const executable = formSubjects().flatMap((contract) =>
+        executableOperations(contract)
       )
-    ).toEqual([])
-  })
+      expect(executable.length).toBeGreaterThan(0)
+    })
 
-  it('introduces no new output-format deviation', () => {
-    const known = new Set(KNOWN_DEVIATIONS.output_format)
-    expect(
-      deviatingIds('output_formats', 'output_format').filter(
-        (id) => !known.has(id)
-      )
-    ).toEqual([])
-  })
+    it('renders every executable video operation as a selectable mode', () => {
+      for (const contract of formSubjects()) {
+        if (contract.family !== 'video') continue
+        const rendered = operationsFor(modelFor(contract))
+        const executable = executableOperations(contract)
+          .filter((operation) => operation.output.type === 'video')
+          .map((operation) => operation.id)
 
-  it('records every remaining deviation, so none is silently dropped', () => {
-    // A recorded id that no longer deviates is not an error — that is the work
-    // being finished — but the count must not grow unnoticed.
-    expect(
-      deviatingIds('resolutions', 'resolution').length
-    ).toBeLessThanOrEqual(KNOWN_DEVIATIONS.resolution.length)
-    expect(
-      deviatingIds('aspect_ratios', 'aspect_ratio').length
-    ).toBeLessThanOrEqual(KNOWN_DEVIATIONS.aspect_ratio.length)
-    expect(
-      deviatingIds('output_formats', 'output_format').length
-    ).toBeLessThanOrEqual(KNOWN_DEVIATIONS.output_format.length)
-  })
-})
+        expect(rendered, contract.model_id).toEqual(executable)
+      }
+    })
 
-describe('the image form and the declared output sizes agree', () => {
-  // Image specs state `output_sizes` rather than `resolutions`, and the parity
-  // gate above only covered the latter — which is how a model could publish
-  // 1024x1024 and still be offered the modality's 1K/2K/4K.
-  const imageSubjects = Object.values(payload.models).filter(
-    (contract) => contract.family === 'image'
-  )
+    it('renders every video operation parameter with its contract value', () => {
+      for (const contract of formSubjects()) {
+        if (contract.family !== 'video') continue
+        for (const operation of executableOperations(contract)) {
+          const schema = buildOperationSchema(
+            modelFor(contract),
+            operation.id as Parameters<typeof buildOperationSchema>[1]
+          )
+          for (const parameter of operation.parameters ?? []) {
+            expectParameterRendered(
+              schema.controls.find((control) => control.key === parameter.name),
+              parameter,
+              `${contract.model_id}.${operation.id}`
+            )
+          }
+        }
+      }
+    })
 
-  it('has image contracts to compare', () => {
-    expect(imageSubjects.length).toBeGreaterThan(0)
-  })
+    it('renders a media control for every video operation input', () => {
+      for (const contract of formSubjects()) {
+        if (contract.family !== 'video') continue
+        for (const operation of executableOperations(contract)) {
+          const schema = buildOperationSchema(
+            modelFor(contract),
+            operation.id as Parameters<typeof buildOperationSchema>[1]
+          )
+          for (const input of operation.inputs ?? []) {
+            const control = schema.controls.find(
+              (candidate) => candidate.key === input.slot
+            )
+            expect(
+              control,
+              `${contract.model_id}.${operation.id}: missing input ${input.slot}`
+            ).toBeDefined()
+            if (!control) continue
+            if (input.type === 'text' || input.type === 'url') {
+              expect(control.kind).toBe('text')
+              continue
+            }
+            expect(
+              control.kind,
+              `${contract.model_id}.${operation.id}: ${input.slot}`
+            ).toBe('media')
+            if (input.max !== undefined) {
+              expect(control.maxCount).toBe(input.max)
+            }
+            if (input.maxSizeMb !== undefined) {
+              expect(control.maxBytes).toBe(
+                Math.round(input.maxSizeMb * 1024 * 1024)
+              )
+            }
+            for (const mime of input.allowedMimes ?? []) {
+              expect(
+                control.accept?.split(',').map((entry) => entry.trim()),
+                `${contract.model_id}.${operation.id}: ${input.slot} accepts ${mime}`
+              ).toContain(asMime(mime))
+            }
+          }
+        }
+      }
+    })
 
-  it('offers exactly the declared sizes, for every model that declares them', () => {
-    const deviations: string[] = []
-    for (const contract of Object.values(payload.models)) {
-      const declared = (contract as { output_sizes?: string[] }).output_sizes
-      if (!declared?.length) continue
-      const rendered =
-        valuesOf(buildParamSchema(modelFor(contract)), 'resolution') ?? []
-      if (rendered.join(',') !== declared.join(',')) {
-        deviations.push(
-          `${contract.model_id}: contract ${declared.join('/')} vs form ${rendered.join('/')}`
+    it('renders every image operation parameter with its contract value', () => {
+      for (const contract of formSubjects()) {
+        if (contract.family !== 'image') continue
+        const schema = buildParamSchema(modelFor(contract))
+        for (const operation of executableOperations(contract)) {
+          for (const parameter of operation.parameters ?? []) {
+            expectParameterRendered(
+              schema.controls.find((control) => control.key === parameter.name),
+              parameter,
+              `${contract.model_id}.${operation.id}`
+            )
+          }
+        }
+      }
+    })
+
+    it('carries the contract reference-image ceiling onto the flat image form', () => {
+      for (const contract of formSubjects()) {
+        if (contract.family !== 'image') continue
+        const declared = contract.reference_images
+        if (!declared) continue
+        const schema = buildParamSchema(modelFor(contract))
+        const control = schema.controls.find(
+          (candidate) => candidate.key === 'reference_media'
         )
+        if (declared.max === 0) {
+          expect(
+            control,
+            `${contract.model_id}: no reference control`
+          ).toBeUndefined()
+          continue
+        }
+        expect(
+          control,
+          `${contract.model_id}: missing reference control`
+        ).toBeDefined()
+        expect(
+          control?.maxCount,
+          `${contract.model_id}: reference ceiling`
+        ).toBe(declared.max ?? 1)
+        if (declared.max_bytes_each !== undefined) {
+          expect(
+            control?.maxBytes,
+            `${contract.model_id}: reference bytes`
+          ).toBe(declared.max_bytes_each)
+        }
+      }
+    })
+
+    it('does not invent modes for video contracts whose operations are not executable', () => {
+      for (const contract of formSubjects()) {
+        if (contract.family !== 'video') continue
+        const executable = executableOperations(contract).filter(
+          (operation) => operation.output.type === 'video'
+        )
+        if (executable.length > 0) continue
+        expect(operationsFor(modelFor(contract)), contract.model_id).toEqual([])
+      }
+    })
+  }
+)
+
+describe('the contract operation payload', () => {
+  it('publishes object operations once the v2 payload is generated', () => {
+    if (!isV2) return
+    for (const contract of formSubjects()) {
+      for (const operation of contractOperations(contract)) {
+        expect(typeof operation.id, contract.model_id).toBe('string')
+        expect(typeof operation.executable, contract.model_id).toBe('boolean')
+        expect(operation.output.type, contract.model_id).toBeDefined()
       }
     }
-    expect(deviations).toEqual([])
   })
 })

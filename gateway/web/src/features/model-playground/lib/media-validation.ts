@@ -1,6 +1,3 @@
-import type { ModelContract } from '@/features/pricing/types'
-
-import type { PlaygroundOperation, PlaygroundParams } from '../types'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -19,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { operationMedia } from './operation-matrix'
+import type { ContractInput, ModelContract } from '@/features/pricing/types'
+
+import type { PlaygroundOperation, PlaygroundParams } from '../types'
 
 /**
- * Client-side mirror of the gateway's per-mode media rules.
+ * Client-side mirror of the gateway's per-operation media rules.
  *
  * This is not a second source of truth: the gateway re-checks everything and
  * stays the last line of defence. The point is that the gateway rejects the
@@ -44,9 +43,9 @@ export type ReferenceLimits = Partial<Record<string, ReferenceLimit>>
 /**
  * The declared limits for a model's reference slots.
  *
- * A model that publishes no contract, or a contract whose spec established no
- * limit for a family, contributes nothing — the form then keeps its previous
- * behaviour instead of inventing a ceiling.
+ * Only the contract is read: a model that publishes no contract, or whose spec
+ * established no limit for a family, contributes nothing — the form then keeps
+ * its previous behaviour instead of inventing a ceiling.
  */
 export function referenceLimitsFrom(
   contract: ModelContract | undefined
@@ -75,46 +74,62 @@ function filled(params: PlaygroundParams, key: string): string[] {
   )
 }
 
-/** The first rule the current parameter set breaks, or null when it is valid. */
-export function validateOperationMedia(
-  operation: PlaygroundOperation,
-  params: PlaygroundParams,
-  limits: ReferenceLimits = {}
-): MediaIssue | null {
-  const specs = operationMedia(operation)
+function mediaInputs(inputs: ContractInput[]): ContractInput[] {
+  return inputs.filter(
+    (input) =>
+      input.type === 'image' ||
+      input.type === 'video' ||
+      input.type === 'audio' ||
+      input.type === 'file'
+  )
+}
 
-  for (const spec of specs) {
-    if (!spec.required) continue
-    if (filled(params, spec.key).length === 0) {
-      return { code: 'missing_required', slotKey: spec.key }
+/**
+ * The first rule the current parameter set breaks, or null when it is valid.
+ *
+ * Required/min/max come from the operation's contract inputs. The two reference
+ * mode rules that the contract cannot express as numbers (an all-empty reference
+ * set and audio without a visual reference) stay here until the gateway does.
+ */
+export function validateOperationMedia(
+  inputs: ContractInput[],
+  params: PlaygroundParams,
+  operation?: PlaygroundOperation
+): MediaIssue | null {
+  const media = mediaInputs(inputs)
+
+  for (const input of media) {
+    if (input.required && filled(params, input.slot).length === 0) {
+      return { code: 'missing_required', slotKey: input.slot }
     }
   }
 
-  // What the model declares it accepts, checked here so an over-full or partial
-  // set is refused by the form rather than by the gateway after submission.
-  for (const spec of specs) {
-    const limit = limits[spec.key]
-    if (!limit) continue
-    const count = filled(params, spec.key).length
-
-    if (limit.max !== undefined && count > limit.max) {
-      return { code: 'too_many', slotKey: spec.key, max: limit.max }
+  for (const input of media) {
+    const count = filled(params, input.slot).length
+    if (input.max !== undefined && count > input.max) {
+      return { code: 'too_many', slotKey: input.slot, max: input.max }
     }
     // A partial set is unambiguous; an untouched optional slot is not, so it is
     // left to the required check above.
-    if (limit.min !== undefined && count > 0 && count < limit.min) {
-      return { code: 'too_few', slotKey: spec.key, min: limit.min }
+    if (input.min !== undefined && count > 0 && count < input.min) {
+      return { code: 'too_few', slotKey: input.slot, min: input.min }
     }
   }
 
-  // Reference mode has no single required slot, but the gateway refuses a
-  // reference operation with nothing to reference.
   if (operation === 'video_multi_ref') {
-    const images = filled(params, 'reference_images')
-    const videos = filled(params, 'reference_videos')
-    const audios = filled(params, 'reference_audios')
+    const images = media
+      .filter((input) => input.type === 'image')
+      .flatMap((input) => filled(params, input.slot))
+    const videos = media
+      .filter((input) => input.type === 'video')
+      .flatMap((input) => filled(params, input.slot))
+    const audios = media
+      .filter((input) => input.type === 'audio')
+      .flatMap((input) => filled(params, input.slot))
+    const referenceSlot =
+      media.find((input) => input.type === 'image')?.slot ?? 'reference_images'
     if (images.length + videos.length + audios.length === 0) {
-      return { code: 'missing_required', slotKey: 'reference_images' }
+      return { code: 'missing_required', slotKey: referenceSlot }
     }
     // Reference audio needs a visual reference beside it; the gateway refuses an
     // audio-only reference set outright.
@@ -123,16 +138,24 @@ export function validateOperationMedia(
     }
   }
 
+  for (const input of inputs) {
+    if (input.type !== 'url' || !input.required) continue
+    const value = params[input.slot]
+    if (typeof value !== 'string' || value.trim() === '') {
+      return { code: 'missing_required', slotKey: input.slot }
+    }
+  }
+
   return null
 }
 
 /** True when the mode has no usable input yet, so submit stays disabled. */
 export function hasBlockingMediaIssue(
-  operation: PlaygroundOperation,
+  inputs: ContractInput[],
   params: PlaygroundParams,
-  limits: ReferenceLimits = {}
+  operation?: PlaygroundOperation
 ): boolean {
-  return validateOperationMedia(operation, params, limits) !== null
+  return validateOperationMedia(inputs, params, operation) !== null
 }
 
 /** The slot rules the form itself can enforce, taken from the control. */

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/modelcontracts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -334,4 +335,31 @@ func TestOmniFlashExtCaps(t *testing.T) {
 	require.Error(t, validateOmniFlashExtCaps(map[string]any{"duration": -1}))
 	require.Error(t, validateOmniFlashExtCaps(map[string]any{"duration": 2}))
 	require.Error(t, validateOmniFlashExtCaps(map[string]any{"resolution": "1440p", "duration": 4}))
+}
+
+// The published executable set must not drift from operationAllowed. The
+// catalog is a promise a client renders and submits from; if the validator
+// accepts fewer operations than the contract, the client offers dead modes.
+func TestPublishedExecutableOperationsMatchAPIMartContract(t *testing.T) {
+	want := map[string][]string{
+		"seedance-2-0":           {opTextToVideo, opFirstFrame, opFirstLastFrame, opVideoMultiRef},
+		"seedance-2-0-fast":      {opTextToVideo, opFirstFrame, opFirstLastFrame, opVideoMultiRef},
+		"seedance-2-0-mini":      {opTextToVideo, opFirstFrame, opFirstLastFrame, opVideoMultiRef},
+		"seedance-2-5":           {opTextToVideo, opFirstFrame, opFirstLastFrame, opVideoMultiRef, opVideoEdit, opVideoExtend},
+		"wan-3.0":                {opTextToVideo, opFirstFrame, opFirstLastFrame, opVideoMultiRef, opDocumentToVideo, opWebpageToVideo},
+		"minimax-h3":             {opTextToVideo, opFirstFrame, opEndFrame, opFirstLastFrame, opVideoMultiRef},
+		"grok-imagine-video-1-5": {opTextToVideo, opVideoMultiRef},
+	}
+
+	for model, expected := range want {
+		contract, ok := modelcontracts.For(model)
+		require.True(t, ok, "model %s has no published contract", model)
+		got := make([]string, 0, len(contract.Operations))
+		for _, operation := range contract.Operations {
+			if operation.Executable {
+				got = append(got, operation.ID)
+			}
+		}
+		assert.ElementsMatch(t, expected, got, "model %s executable operations drifted from operationAllowed", model)
+	}
 }

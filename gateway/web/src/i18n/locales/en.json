@@ -899,6 +899,8 @@
     "Authorize CLI": "Authorize CLI",
     "Authorize OmniMux CLI": "Authorize OmniMux CLI",
     "Authorize this device to use OmniMux CLI for 30 days. This replaces only your previous CLI device token; other access tokens stay active.": "Authorize this device to use OmniMux CLI for 30 days. This replaces only your previous CLI device token; other access tokens stay active.",
+    "Unknown CLI device": "Unknown CLI device",
+    "Only continue if you just started this request in your terminal.": "Only continue if you just started this request in your terminal.",
     "Auto": "Auto",
     "Auto (Circuit Breaker)": "Auto (Circuit Breaker)",
     "Auto assignment order": "Auto assignment order",
@@ -9426,6 +9428,14 @@
     "Top up successful": "Top up successful",
     "Top up to continue this generation": "Top up to continue this generation",
     "Top up": "Top up",
-    "Your credits are ready — generation resumes automatically.": "Your credits are ready — generation resumes automatically."
+    "Your credits are ready — generation resumes automatically.": "Your credits are ready — generation resumes automatically.",
+    "Locked by the service contract": "Locked by the service contract",
+    "Document": "Document",
+    "Webpage URL": "Webpage URL",
+    "End frame": "End frame",
+    "Document to video": "Document to video",
+    "Webpage to video": "Webpage to video",
+    "Digital human": "Digital human",
+    "Enter a URL": "Enter a URL"
   }
 }

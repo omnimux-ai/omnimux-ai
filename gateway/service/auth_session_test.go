@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -441,4 +443,40 @@ func TestUserAuthVersionInvalidatesExistingSession(t *testing.T) {
 	assert.ErrorIs(t, err, ErrLoginSessionRevoked)
 	_, err = CreateLoginSessionAtAuthVersion(user.Id, identity.UserAuthVersion, "2fa", "127.0.0.1", "test-agent")
 	assert.ErrorIs(t, err, ErrLoginSessionRevoked, "a pending 2FA flow must not survive an auth-version change")
+}
+
+func TestReadRefreshCookieRejectsDuplicateNames(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Request.Header.Set("Cookie", "new_api_refresh=first; new_api_refresh=second")
+	_, err := ReadRefreshCookie(c)
+	assert.ErrorIs(t, err, ErrRefreshTokenInvalid)
+
+	c.Request.Header.Set("Cookie", "new_api_refresh=only")
+	value, err := ReadRefreshCookie(c)
+	require.NoError(t, err)
+	assert.Equal(t, "only", value)
+}
+
+func TestRefreshCookieUsesHostPrefixInSecureMode(t *testing.T) {
+	previousSecure := common.SessionCookieSecure
+	common.SessionCookieSecure = true
+	t.Cleanup(func() { common.SessionCookieSecure = previousSecure })
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	WriteRefreshCookie(c, "not-a-session-token")
+	cookies := recorder.Result().Cookies()
+	var refreshCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == SecureRefreshCookieName {
+			refreshCookie = cookie
+		}
+	}
+	require.NotNil(t, refreshCookie)
+	assert.Equal(t, "/", refreshCookie.Path)
+	assert.True(t, refreshCookie.Secure)
+	assert.True(t, refreshCookie.HttpOnly)
 }

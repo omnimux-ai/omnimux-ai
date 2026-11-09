@@ -35,6 +35,120 @@ function seedance(): PricingModel {
     enable_groups: ['default'],
     tags: 'Video Generation,async,task',
     output_modalities: ['video'],
+    contract: {
+      model_id: 'seedance-2-5',
+      family: 'video',
+      prompt_max_chars: 5000,
+      operations: [
+        {
+          id: 'text_to_video',
+          executable: true,
+          inputs: [{ slot: 'prompt', type: 'text', required: true }],
+          parameters: [],
+          output: { type: 'video' },
+        },
+        {
+          id: 'first_frame',
+          executable: true,
+          inputs: [
+            { slot: 'prompt', type: 'text', required: true },
+            {
+              slot: 'first_frame',
+              type: 'image',
+              role: 'first_frame',
+              required: true,
+              min: 1,
+              max: 1,
+            },
+          ],
+          parameters: [
+            {
+              name: 'aspect_ratio',
+              type: 'enum',
+              enum: ['adaptive'],
+              default: 'adaptive',
+              fixed: 'adaptive',
+            },
+          ],
+          output: { type: 'video' },
+        },
+        {
+          id: 'first_last_frame',
+          executable: true,
+          inputs: [
+            { slot: 'prompt', type: 'text', required: true },
+            {
+              slot: 'first_frame',
+              type: 'image',
+              role: 'first_frame',
+              required: true,
+              min: 1,
+              max: 1,
+            },
+            {
+              slot: 'last_frame',
+              type: 'image',
+              role: 'last_frame',
+              required: true,
+              min: 1,
+              max: 1,
+            },
+          ],
+          parameters: [],
+          output: { type: 'video' },
+        },
+        {
+          id: 'video_multi_ref',
+          executable: true,
+          inputs: [{ slot: 'prompt', type: 'text', required: true }],
+          parameters: [],
+          output: { type: 'video' },
+        },
+        {
+          id: 'video_edit',
+          executable: true,
+          inputs: [
+            { slot: 'prompt', type: 'text', required: true },
+            {
+              slot: 'source_videos',
+              type: 'video',
+              role: 'source',
+              required: true,
+              min: 1,
+              max: 1,
+            },
+          ],
+          parameters: [
+            {
+              name: 'duration',
+              type: 'integer',
+              minimum: -1,
+              maximum: -1,
+              default: -1,
+              fixed: -1,
+            },
+          ],
+          output: { type: 'video' },
+        },
+        {
+          id: 'video_extend',
+          executable: true,
+          inputs: [
+            { slot: 'prompt', type: 'text', required: true },
+            {
+              slot: 'source_videos',
+              type: 'video',
+              role: 'source',
+              required: true,
+              min: 1,
+              max: 1,
+            },
+          ],
+          parameters: [],
+          output: { type: 'video' },
+        },
+      ],
+    },
   }
 }
 
@@ -84,7 +198,9 @@ describe('playground mode-aware form', () => {
       <ModelPlaygroundSection model={seedance()} authenticated />
     )
 
-    expect(container.querySelector('[data-parity="playground.form.first-frame"]')).toBeNull()
+    expect(
+      container.querySelector('[data-parity="playground.form.first-frame"]')
+    ).toBeNull()
 
     pickMode('First & last frame')
 
@@ -109,7 +225,7 @@ describe('playground mode-aware form', () => {
     expect(locked).not.toBeNull()
     expect(locked?.textContent).toBe('adaptive')
     expect(
-      screen.getByText('Aspect ratio follows the input frame')
+      screen.getByText('Locked by the service contract')
     ).toBeInTheDocument()
   })
 
@@ -125,7 +241,7 @@ describe('playground mode-aware form', () => {
     )
     expect(locked?.textContent).toBe('Auto')
     expect(
-      screen.getByText('Duration follows the input video')
+      screen.getByText('Locked by the service contract')
     ).toBeInTheDocument()
   })
 
@@ -172,7 +288,9 @@ describe('playground mode-aware form', () => {
     renderSection(<ModelPlaygroundSection model={seedance()} authenticated />)
 
     const prompt = screen.getByPlaceholderText('Describe the result you want')
-    fireEvent.change(prompt, { target: { value: 'Remove the logo from the cup' } })
+    fireEvent.change(prompt, {
+      target: { value: 'Remove the logo from the cup' },
+    })
     pickMode('Video edit')
 
     expect(

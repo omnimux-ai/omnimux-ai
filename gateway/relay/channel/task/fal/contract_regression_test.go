@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/modelcontracts"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -134,5 +135,23 @@ func TestCanonicalMediaRequestBoundary(t *testing.T) {
 			resp.Body.Close()
 			assert.Equal(t, 1, sends)
 		})
+	}
+}
+
+// The published minimax-h3 contract must cover every operation this fal line
+// can execute. The contract is the client-facing union; a fal-only operation
+// missing from it would be invisible to the playground.
+func TestFalH3OperationsArePublishedInContract(t *testing.T) {
+	contract, ok := modelcontracts.For("minimax-h3")
+	require.True(t, ok, "minimax-h3 has no published contract")
+
+	published := make(map[string]bool, len(contract.Operations))
+	for _, operation := range contract.Operations {
+		if operation.Executable {
+			published[operation.ID] = true
+		}
+	}
+	for _, operation := range []string{"text_to_video", "first_frame", "video_multi_ref"} {
+		assert.True(t, published[operation], "fal H3 supports %s but the contract does not publish it", operation)
 	}
 }

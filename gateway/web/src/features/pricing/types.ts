@@ -120,10 +120,41 @@ export type PricingModel = {
  */
 export type ModelContract = {
   model_id: string
+  /** Shape of the published contract. The gateway publishes "2.0". */
+  schemaVersion?: string
+  /** Deterministic content hash of one contract, excluding this field. */
+  contractVersion?: string
   family?: ModelFamily
   status?: string
-  operations?: string[]
+  /**
+   * Compatibility view of the v1 payload, where operations were bare ids. A
+   * v2 payload carries `ContractOperation[]` instead; a client must accept
+   * both because a cached or older gateway response can still surface here.
+   */
+  operations?: string[] | ContractOperation[]
+  /** The same operation ids as strings, for clients that cannot read objects. */
+  operation_ids?: string[]
+  /**
+   * Field paths whose value the governance spec did not establish. Published as
+   * data so a client can tell "not stated" apart from "no such axis".
+   */
+  unknowns?: string[]
   input_modalities?: string[]
+  tool_calling?: boolean
+  streaming?: boolean
+  prompt_caching?: boolean
+  audio_kind?: string
+  input_formats?: string[]
+  max_input_bytes?: number
+  max_input_seconds?: number
+  max_output_seconds?: number
+  voices?: number
+  languages?: string[]
+  endpoints?: ContractEndpoint[]
+  auth?: string
+  rate_limit?: unknown
+  pagination?: string
+  response_fields?: string[]
   durations_seconds?: {
     min?: number
     max?: number
@@ -141,6 +172,62 @@ export type ModelContract = {
   prompt_max_chars?: number
   context_window_tokens?: number
   max_output_tokens?: number
+}
+
+/** One callable route a data-family contract publishes. */
+export type ContractEndpoint = {
+  name?: string
+  method?: string
+  path?: string
+}
+
+/** How a parameter bound was established by the governance spec. */
+export type ContractLimitSource = {
+  kind: 'official_docs' | 'measured' | 'policy_conservative' | string
+  note?: string
+}
+
+/** One input slot an executable operation consumes. */
+export type ContractInput = {
+  slot: string
+  type: 'text' | 'image' | 'video' | 'audio' | 'file' | 'url' | string
+  role?: string
+  required: boolean
+  min?: number
+  max?: number
+  allowedMimes?: string[]
+  maxSizeMb?: number
+  minDurationSec?: number
+  maxDurationSec?: number
+}
+
+/** One request parameter an executable operation accepts. */
+export type ContractParameter = {
+  name: string
+  type: 'enum' | 'integer' | 'number' | 'boolean' | 'string'
+  enum?: Array<string | number | boolean>
+  minimum?: number
+  maximum?: number
+  step?: number
+  default?: string | number | boolean
+  fixed?: string | number | boolean
+  limitSource?: ContractLimitSource
+}
+
+/** The media shape one operation produces. */
+export type ContractOperationOutput = {
+  type: 'text' | 'image' | 'video' | 'audio'
+  formats?: string[]
+  sizes?: string[]
+}
+
+/** One mode a model can actually execute through the gateway. */
+export type ContractOperation = {
+  id: string
+  executable: boolean
+  inputs: ContractInput[]
+  parameters: ContractParameter[]
+  output: ContractOperationOutput
 }
 
 /** Ceiling and accepted formats for one reference family. */

@@ -1,24 +1,87 @@
 package controller
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"html"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/social"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-var socialPublicMediaHTTP = &http.Client{
-	Timeout: 60 * time.Second,
-	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	},
+const socialPublicMediaTimeout = 60 * time.Second
+
+const socialOAuthBrowserCookiePrefix = "social_tiktok_oauth_"
+const socialOAuthBrowserCookieTTL = 10 * time.Minute
+
+func socialOAuthBrowserCookieName(state string) string {
+	sum := sha256.Sum256([]byte(state))
+	prefix := socialOAuthBrowserCookiePrefix
+	if common.SessionCookieSecure {
+		prefix = "__Host-" + prefix
+	}
+	return prefix + hex.EncodeToString(sum[:])
+}
+
+func socialOAuthBrowserCookieValue(state string) string {
+	return common.GenerateHMACWithKey([]byte("social-oauth-browser-v1:"+common.SessionSecret), state)
+}
+
+func setSocialOAuthBrowserCookie(c *gin.Context, state string) {
+	if state == "" {
+		return
+	}
+	path := "/api/social/v1/oauth/tiktok"
+	if common.SessionCookieSecure {
+		path = "/"
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     socialOAuthBrowserCookieName(state),
+		Value:    socialOAuthBrowserCookieValue(state),
+		Path:     path,
+		MaxAge:   int(socialOAuthBrowserCookieTTL / time.Second),
+		HttpOnly: true,
+		Secure:   common.SessionCookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func socialOAuthBrowserCookieValid(c *gin.Context, state string) bool {
+	if c == nil || state == "" {
+		return false
+	}
+	value, err := c.Cookie(socialOAuthBrowserCookieName(state))
+	return err == nil && value == socialOAuthBrowserCookieValue(state)
+}
+
+func clearSocialOAuthBrowserCookie(c *gin.Context, state string) {
+	if c == nil || state == "" {
+		return
+	}
+	path := "/api/social/v1/oauth/tiktok"
+	if common.SessionCookieSecure {
+		path = "/"
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     socialOAuthBrowserCookieName(state),
+		Value:    "",
+		Path:     path,
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   common.SessionCookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 var socialPublicMediaPassthroughHeaders = []string{
@@ -145,6 +208,11 @@ func SocialConnect(c *gin.Context) {
 		socialError(c, err)
 		return
 	}
+	if strings.EqualFold(req.Provider, social.ProviderTikTokDirect) {
+		if parsed, parseErr := url.Parse(authURL); parseErr == nil {
+			setSocialOAuthBrowserCookie(c, parsed.Query().Get("state"))
+		}
+	}
 	common.ApiSuccess(c, gin.H{"auth_url": authURL, "platform": social.NormalizePlatform(req.Platform), "provider": req.Provider})
 }
 
@@ -152,6 +220,8 @@ func SocialConnect(c *gin.Context) {
 // fork: tiktok-direct
 // GET (and POST for defensive parity) /api/social/v1/oauth/tiktok/callback?code=...&state=...
 func SocialTikTokCallback(c *gin.Context) {
+	c.Header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+	c.Header("X-Content-Type-Options", "nosniff")
 	code := c.Query("code")
 	state := c.Query("state")
 	if code == "" {
@@ -164,6 +234,11 @@ func SocialTikTokCallback(c *gin.Context) {
 		c.Data(http.StatusBadRequest, "text/html; charset=utf-8", []byte(renderTikTokCallbackPage("TikTok 授权失败", "missing code or state", "")))
 		return
 	}
+	if !socialOAuthBrowserCookieValid(c, state) {
+		c.Data(http.StatusBadRequest, "text/html; charset=utf-8", []byte(renderTikTokCallbackPage("TikTok 授权失败", "authorization flow does not belong to this browser", "")))
+		return
+	}
+	defer clearSocialOAuthBrowserCookie(c, state)
 	res, err := socialSvc.HandleTikTokCallback(c.Request.Context(), code, state)
 	if err != nil {
 		sanitized := err.Error()
@@ -192,10 +267,12 @@ func renderTikTokCallbackPage(title, msg, handle string) string {
 	if handle != "" {
 		deepLink = `<p><a href="omnimux://social/connected" style="display:inline-block;margin-top:12px;padding:10px 18px;background:#000;color:#fff;border-radius:999px;text-decoration:none">返回 OmniMux</a></p>`
 	}
-	return `<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + title + `</title>` +
+	safeTitle := html.EscapeString(title)
+	safeMsg := html.EscapeString(msg)
+	return `<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + safeTitle + `</title>` +
 		`<style>body{font-family:-apple-system,system-ui,sans-serif;background:#0A0A0B;color:#EDEDED;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}main{text-align:center;max-width:420px;padding:32px}h1{font-size:22px;margin:0 0 8px}p{color:#A19F9D;font-size:14px;line-height:1.6}</style></head><body><main>` +
 		`<img src="https://omnimux.ai/logo.png" alt="" width="56" height="56" style="border-radius:14px">` +
-		`<h1>` + title + `</h1><p>` + msg + `</p>` + deepLink +
+		`<h1>` + safeTitle + `</h1><p>` + safeMsg + `</p>` + deepLink +
 		`<p style="margin-top:24px;font-size:12px;color:#5b5b5b">omnimux.ai · Twinspace Labs LLC</p></main></body></html>`
 }
 
@@ -246,7 +323,13 @@ func SocialPublicMediaProxy(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid or expired media token", "code": "SOCIAL_MEDIA_INVALID"})
 		return
 	}
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, upstreamURL, nil)
+	if err := service.ValidateSSRFProtectedFetchURL(upstreamURL); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid or expired media token", "code": "SOCIAL_MEDIA_INVALID"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), socialPublicMediaTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, upstreamURL, nil)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid media request", "code": "SOCIAL_MEDIA_INVALID"})
 		return
@@ -257,7 +340,7 @@ func SocialPublicMediaProxy(c *gin.Context) {
 	if ir := c.GetHeader("If-Range"); ir != "" {
 		req.Header.Set("If-Range", ir)
 	}
-	resp, err := socialPublicMediaHTTP.Do(req)
+	resp, err := service.GetSSRFProtectedHTTPClient().Do(req)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"success": false, "message": "media upstream unreachable", "code": "SOCIAL_MEDIA_UPSTREAM_ERROR"})
 		return
@@ -272,6 +355,14 @@ func SocialPublicMediaProxy(c *gin.Context) {
 			c.Writer.Header().Set(h, v)
 		}
 	}
+	contentType := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
+	if !strings.HasPrefix(contentType, "image/") && !strings.HasPrefix(contentType, "video/") && !strings.HasPrefix(contentType, "audio/") {
+		c.Writer.Header().Set("Content-Type", "application/octet-stream")
+		c.Writer.Header().Set("Content-Disposition", `attachment; filename="media"`)
+	}
+	c.Header("Content-Security-Policy", "sandbox; default-src 'none'")
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Header("X-Content-Type-Options", "nosniff")
 	c.Status(resp.StatusCode)
 	_, _ = io.Copy(c.Writer, resp.Body)
 }

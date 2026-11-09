@@ -95,6 +95,8 @@ func TestDeviceLoginPublicGrantLookupNoSecrets(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(created.Body.Bytes(), &body))
 	require.NotNil(t, body.Data["verification_context"], "device grant must be discoverable before browser verification")
+	contextMap := body.Data["verification_context"].(map[string]any)
+	assert.Equal(t, "omnimux-cli", contextMap["client_name"], "the approver must see which device is asking")
 	lookup := deviceLoginJSON(t, "POST", "/device/code", map[string]string{"user_code": body.Data["user_code"].(string)}, nil)
 	var lookedUp struct {
 		Success bool           `json:"success"`

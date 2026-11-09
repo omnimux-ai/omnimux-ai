@@ -20,9 +20,13 @@ import { describe, expect, test } from 'vitest'
 
 import type { PricingModel } from '@/features/pricing/types'
 
-import { buildOperationSchema, buildParamSchema, defaultParams } from '../param-schema'
-import { toSubmitBody } from '../submit-body'
 import type { PlaygroundParams } from '../../types'
+import {
+  buildOperationSchema,
+  buildParamSchema,
+  defaultParams,
+} from '../param-schema'
+import { toSubmitBody } from '../submit-body'
 
 function seedance(): PricingModel {
   return {
@@ -76,7 +80,12 @@ describe('toSubmitBody', () => {
       first_frame: ['https://cdn/first.png'],
     }
 
-    const body = toSubmitBody('seedance-2-5', 'first_last_frame', schema, params)
+    const body = toSubmitBody(
+      'seedance-2-5',
+      'first_last_frame',
+      schema,
+      params
+    )
 
     expect(body.image_with_roles).toEqual([
       { url: 'https://cdn/first.png', role: 'first_frame' },
@@ -205,5 +214,131 @@ describe('toSubmitBody', () => {
     expect(body.operation).toBeUndefined()
     expect(body.images).toEqual(['https://cdn/ref.png'])
     expect(body).not.toHaveProperty('reference_media')
+  })
+})
+
+describe('toSubmitBody for contract-only operation slots', () => {
+  const digitalHuman: PricingModel = {
+    id: 3,
+    model_name: 'minimax-h3-video',
+    quota_type: 0,
+    model_ratio: 1,
+    completion_ratio: 1,
+    enable_groups: ['default'],
+    tags: 'Video Generation,async,task',
+    output_modalities: ['video'],
+    contract: {
+      model_id: 'minimax-h3-video',
+      family: 'video',
+      operations: [
+        {
+          id: 'digital_human',
+          executable: true,
+          inputs: [
+            {
+              slot: 'reference_image',
+              type: 'image',
+              required: true,
+              min: 1,
+              max: 1,
+            },
+            {
+              slot: 'reference_audio',
+              type: 'audio',
+              required: true,
+              min: 1,
+              max: 1,
+            },
+          ],
+          parameters: [
+            { name: 'duration', type: 'integer', minimum: 1, maximum: 15 },
+          ],
+          output: { type: 'video' },
+        },
+        {
+          id: 'document_to_video',
+          executable: true,
+          inputs: [
+            { slot: 'prompt', type: 'text', required: true },
+            {
+              slot: 'file',
+              type: 'file',
+              required: true,
+              min: 1,
+              max: 1,
+            },
+          ],
+          parameters: [],
+          output: { type: 'video' },
+        },
+        {
+          id: 'webpage_to_video',
+          executable: true,
+          inputs: [
+            { slot: 'prompt', type: 'text', required: true },
+            { slot: 'url', type: 'url', required: true },
+          ],
+          parameters: [],
+          output: { type: 'video' },
+        },
+      ],
+    },
+  }
+
+  test('moves the singular reference image and audio to their arrays', () => {
+    const schema = buildOperationSchema(digitalHuman, 'digital_human')
+    const params: PlaygroundParams = {
+      ...defaultParams(schema),
+      reference_image: ['https://cdn/face.png'],
+      reference_audio: ['https://cdn/voice.mp3'],
+    }
+
+    const body = toSubmitBody(
+      'minimax-h3-video',
+      'digital_human',
+      schema,
+      params
+    )
+
+    expect(body.images).toEqual(['https://cdn/face.png'])
+    expect(body.audios).toEqual(['https://cdn/voice.mp3'])
+    expect(body).not.toHaveProperty('reference_image')
+    expect(body).not.toHaveProperty('reference_audio')
+  })
+
+  test('moves a document upload to file_url', () => {
+    const schema = buildOperationSchema(digitalHuman, 'document_to_video')
+    const params: PlaygroundParams = {
+      ...defaultParams(schema),
+      file: ['https://cdn/brief.pdf'],
+    }
+
+    const body = toSubmitBody(
+      'minimax-h3-video',
+      'document_to_video',
+      schema,
+      params
+    )
+
+    expect(body.file_url).toBe('https://cdn/brief.pdf')
+    expect(body).not.toHaveProperty('file')
+  })
+
+  test('moves a webpage link to link_url', () => {
+    const schema = buildOperationSchema(digitalHuman, 'webpage_to_video')
+    const params: PlaygroundParams = {
+      ...defaultParams(schema),
+      url: 'https://example.com/article',
+    }
+
+    const body = toSubmitBody(
+      'minimax-h3-video',
+      'webpage_to_video',
+      schema,
+      params
+    )
+
+    expect(body.link_url).toBe('https://example.com/article')
+    expect(body).not.toHaveProperty('url')
   })
 })

@@ -18,15 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'vitest'
 
-import type { PricingModel } from '@/features/pricing/types'
+import type { ModelContract, PricingModel } from '@/features/pricing/types'
 
+import type { ParamControl } from '../../types'
 import {
   buildParamSchema,
   CAPABILITY_KEYS,
   defaultParams,
 } from '../param-schema'
 import { toSubmitBody } from '../submit-body'
-import type { ParamControl } from '../../types'
 
 function model(overrides: Partial<PricingModel>): PricingModel {
   return {
@@ -40,9 +40,38 @@ function model(overrides: Partial<PricingModel>): PricingModel {
   }
 }
 
+function imageContract(overrides: Partial<ModelContract>): ModelContract {
+  return {
+    model_id: 'test-model',
+    family: 'image',
+    operations: [
+      {
+        id: 'text_to_image',
+        executable: true,
+        inputs: [{ slot: 'prompt', type: 'text', required: true }],
+        parameters: [],
+        output: { type: 'image' },
+      },
+    ],
+    ...overrides,
+  }
+}
+
 /** The catalog payload the served image models actually carry. */
-function imageModel(): PricingModel {
-  return model({ model_name: 'gpt-image-2.5', tags: 'Image Generation' })
+function gptImageModel(): PricingModel {
+  return model({
+    model_name: 'gpt-image-2.5',
+    tags: 'Image Generation',
+    contract: imageContract({
+      model_id: 'gpt-image-2.5',
+      reference_images: {
+        min: 0,
+        max: 1,
+        formats: ['jpeg', 'png', 'webp'],
+        max_bytes_each: 5 * 1024 * 1024,
+      },
+    }),
+  })
 }
 
 function referenceControl(controls: ParamControl[]): ParamControl | undefined {
@@ -51,7 +80,9 @@ function referenceControl(controls: ParamControl[]): ParamControl | undefined {
 
 describe('the image-generation reference slot', () => {
   test('renders for a model that declares only the image-generation tag', () => {
-    const schema = buildParamSchema(imageModel())
+    const schema = buildParamSchema(
+      model({ model_name: 'gpt-image-2.5', tags: 'Image Generation' })
+    )
 
     const control = referenceControl(schema.controls)
 
@@ -59,47 +90,50 @@ describe('the image-generation reference slot', () => {
     expect(control?.labelKey).toBe('Reference images')
   })
 
-  test('carries the model’s own formats and ceiling', () => {
-    const schema = buildParamSchema(imageModel())
+  test('takes the contract ceiling instead of the old hand-written table', () => {
+    const schema = buildParamSchema(gptImageModel())
 
     const control = referenceControl(schema.controls)
 
-    expect(control?.accept).toBe('image/png,image/jpeg,image/webp')
-    // OpenAI documents 16 images; it publishes no per-reference-file byte cap,
-    // so none is asserted.
-    expect(control?.maxCount).toBe(16)
-    expect(control?.maxBytes).toBeUndefined()
+    expect(control?.accept).toBe('image/jpeg,image/png,image/webp')
+    expect(control?.maxCount).toBe(1)
+    expect(control?.maxBytes).toBe(5 * 1024 * 1024)
   })
 
-  test('carries each vendor’s own documented ceiling', () => {
-    const ceilings: [string, number][] = [
-      ['nano-banana-pro', 14],
-      ['nano-banana-2', 14],
-      ['seedream-5-0-pro', 10],
-      ['qwen-image-3-0', 3],
-    ]
-
-    for (const [modelName, expected] of ceilings) {
-      const schema = buildParamSchema(
-        model({ model_name: modelName, tags: 'Image Generation' })
-      )
-
-      expect(referenceControl(schema.controls)?.maxCount, modelName).toBe(
-        expected
-      )
-    }
-  })
-
-  test('carries the documented per-file ceiling where the vendor publishes one', () => {
+  test('takes a larger declared ceiling from another contract', () => {
     const schema = buildParamSchema(
-      model({ model_name: 'qwen-image-3-0', tags: 'Image Generation' })
+      model({
+        model_name: 'gemini-3.1-flash-lite-image',
+        tags: 'Image Generation',
+        contract: imageContract({
+          model_id: 'gemini-3.1-flash-lite-image',
+          reference_images: {
+            min: 0,
+            max: 14,
+            formats: ['image/png', 'image/jpeg', 'image/webp', 'image/heic'],
+            max_bytes_each: 7 * 1024 * 1024,
+          },
+        }),
+      })
     )
 
-    expect(referenceControl(schema.controls)?.maxBytes).toBe(10 * 1024 * 1024)
+    const control = referenceControl(schema.controls)
+
+    expect(control?.maxCount).toBe(14)
+    expect(control?.accept).toBe('image/png,image/jpeg,image/webp,image/heic')
+    expect(control?.maxBytes).toBe(7 * 1024 * 1024)
+  })
+
+  test('keeps the one-image fallback when no contract is published', () => {
+    const schema = buildParamSchema(
+      model({ model_name: 'uncontracted-image', tags: 'Image Generation' })
+    )
+
+    expect(referenceControl(schema.controls)?.maxCount).toBe(1)
   })
 
   test('claims image-to-image only where the slot is offered', () => {
-    const schema = buildParamSchema(imageModel())
+    const schema = buildParamSchema(gptImageModel())
 
     expect(schema.capabilities).toContain(CAPABILITY_KEYS.textToImage)
     expect(schema.capabilities).toContain(CAPABILITY_KEYS.imageToImage)
@@ -120,11 +154,27 @@ describe('the image-generation reference slot', () => {
     expect(slots).toHaveLength(1)
     expect(schema.capabilities).not.toContain(CAPABILITY_KEYS.imageToImage)
   })
+
+  test('carries a video contract reference ceiling onto the flat slot', () => {
+    const schema = buildParamSchema(
+      model({
+        model_name: 'kling-v3',
+        tags: 'Video Generation,async,task',
+        contract: {
+          model_id: 'kling-v3',
+          family: 'video',
+          reference_images: { min: 0, max: 7 },
+        },
+      })
+    )
+
+    expect(referenceControl(schema.controls)?.maxCount).toBe(7)
+  })
 })
 
 describe('an image submission carrying a reference', () => {
   test('sends the reference under the field the edit surface defines', () => {
-    const schema = buildParamSchema(imageModel())
+    const schema = buildParamSchema(gptImageModel())
     const params = defaultParams(schema)
     params.reference_media = ['https://cdn/a.png']
 
@@ -135,7 +185,7 @@ describe('an image submission carrying a reference', () => {
   })
 
   test('adds no reference field when the slot is empty', () => {
-    const schema = buildParamSchema(imageModel())
+    const schema = buildParamSchema(gptImageModel())
 
     const body = toSubmitBody(
       'gpt-image-2.5',

@@ -2,11 +2,13 @@ package common
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -34,16 +36,36 @@ func GenerateTOTPSecret(accountName string) (*otp.Key, error) {
 	})
 }
 
-// ValidateTOTPCode 验证TOTP验证码
-func ValidateTOTPCode(secret, code string) bool {
-	// 清理验证码格式
+const totpPeriodSeconds int64 = 30
+
+// ValidateTOTPCodeStep validates a TOTP code and returns the matched time step.
+// The step is the single-use unit: callers persist it and reject any accepted
+// step that is not strictly newer, which makes replay within the 30s window fail.
+func ValidateTOTPCodeStep(secret, code string, now time.Time) (int64, bool) {
 	cleanCode := strings.ReplaceAll(code, " ", "")
 	if len(cleanCode) != 6 {
-		return false
+		return 0, false
 	}
+	currentStep := now.UTC().Unix() / totpPeriodSeconds
+	for offset := int64(-1); offset <= 1; offset++ {
+		step := currentStep + offset
+		expected, err := totp.GenerateCodeCustom(secret, time.Unix(step*totpPeriodSeconds, 0).UTC(), totp.ValidateOpts{
+			Period:    uint(totpPeriodSeconds),
+			Skew:      0,
+			Digits:    otp.DigitsSix,
+			Algorithm: otp.AlgorithmSHA1,
+		})
+		if err == nil && subtle.ConstantTimeCompare([]byte(expected), []byte(cleanCode)) == 1 {
+			return step, true
+		}
+	}
+	return 0, false
+}
 
-	// 验证验证码
-	return totp.Validate(cleanCode, secret)
+// ValidateTOTPCode 验证TOTP验证码
+func ValidateTOTPCode(secret, code string) bool {
+	_, ok := ValidateTOTPCodeStep(secret, code, time.Now())
+	return ok
 }
 
 // GenerateBackupCodes 生成备用恢复码

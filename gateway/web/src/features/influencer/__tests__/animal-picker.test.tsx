@@ -363,7 +363,7 @@ it('an unknown historical type keeps its real artifact preview without inventing
 })
 
 it('closing the picker before its parent lookup finishes never applies a late selection', async () => {
-  let finish: (value: unknown) => void = () => {
+  let finish: (value: any) => void = () => {
     throw new Error('lookup not started')
   }
   vi.spyOn(api, 'get').mockImplementation(

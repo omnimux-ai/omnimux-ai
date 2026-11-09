@@ -69,9 +69,13 @@ function controlParityId(key: string): string | undefined {
     reference_images: 'playground.form.media',
     reference_videos: 'playground.form.reference-videos',
     reference_audios: 'playground.form.reference-audio',
+    reference_image: 'playground.form.media',
+    reference_audio: 'playground.form.reference-audio',
     first_frame: 'playground.form.first-frame',
     last_frame: 'playground.form.last-frame',
     source_videos: 'playground.form.source-video',
+    file: 'playground.form.file',
+    url: 'playground.form.url',
     size_mode: 'playground.form.size-mode',
     aspect_ratio: 'playground.form.ratio',
     resolution: 'playground.form.resolution',
@@ -180,9 +184,11 @@ function MediaControl(props: {
           <span className='text-sm'>
             {t('Click to upload or drag files here')}
           </span>
-          <span className='text-muted-foreground text-[12px]'>
-            {t('JPG / PNG / WebP')}
-          </span>
+          {control.accept?.includes('image/') && (
+            <span className='text-muted-foreground text-[12px]'>
+              {t('JPG / PNG / WebP')}
+            </span>
+          )}
           <span className='text-muted-foreground text-[12px] tabular-nums'>
             {props.uploading ? t('Uploading…') : counter}
           </span>
@@ -203,11 +209,17 @@ function MediaControl(props: {
         <ul className='flex flex-wrap gap-2'>
           {props.urls.map((url) => (
             <li key={url} className='group relative size-12'>
-              <img
-                src={url}
-                alt={slotName(url)}
-                className='bg-muted size-12 rounded-lg object-cover'
-              />
+              {control.accept?.includes('image/') ? (
+                <img
+                  src={url}
+                  alt={slotName(url)}
+                  className='bg-muted size-12 rounded-lg object-cover'
+                />
+              ) : (
+                <span className='bg-muted flex size-12 items-center justify-center rounded-lg px-1 text-center text-[10px] break-all'>
+                  {slotName(url)}
+                </span>
+              )}{' '}
               <Button
                 type='button'
                 variant='outline'
@@ -270,7 +282,9 @@ function Control(props: {
           maxLength={maxChars}
           rows={8}
           className='min-h-[200px] rounded-[12px]'
-          placeholder={t('Describe the result you want')}
+          placeholder={t(
+            control.placeholderKey ?? 'Describe the result you want'
+          )}
           onChange={(event) =>
             props.onParamChange(control.key, event.target.value)
           }

@@ -59,11 +59,21 @@ func (s *Service) connectTikTokDirect(ctx context.Context, userId int, redirectA
 	if err != nil {
 		return "", err
 	}
+	redirectAfter = strings.TrimSpace(redirectAfter)
+	if redirectAfter != "" {
+		defaultRedirect := strings.TrimSpace(s.cfg.DefaultRedirectURL)
+		if defaultRedirect == "" {
+			defaultRedirect = s.cfg.TikTokRedirectURI
+		}
+		if err := validateRedirectURL(redirectAfter, defaultRedirect); err != nil {
+			return "", err
+		}
+	}
 	if err := model.CreateSocialOAuthState(&model.SocialOAuthState{
 		State:         state,
 		UserId:        userId,
 		Provider:      ProviderTikTokDirect,
-		RedirectAfter: strings.TrimSpace(redirectAfter),
+		RedirectAfter: redirectAfter,
 	}); err != nil {
 		return "", err
 	}

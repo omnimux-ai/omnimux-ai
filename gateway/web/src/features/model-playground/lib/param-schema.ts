@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type {
   BillingUsageSchema,
+  ContractInput,
+  ContractParameter,
   ModelContract,
   PricingModel,
 } from '@/features/pricing/types'
@@ -35,13 +37,8 @@ import {
   isPerCall,
   type DurationEnvelope,
 } from './billing-dimension'
-import {
-  lockedValue,
-  mediaAccept,
-  mediaCap,
-  operationLocks,
-  operationMedia,
-} from './operation-matrix'
+import { findContractOperation } from './contract-schema'
+import { lockedValue, operationLocks } from './operation-matrix'
 import { tierResolutions } from './tier-group'
 
 /**
@@ -61,60 +58,6 @@ export const CAPABILITY_KEYS = {
   videoEdit: 'Video edit',
   videoAudio: 'Video + audio',
 } as const
-
-/**
- * Models whose tier limits are not expressible from the catalog payload yet.
- *
- * This is the minimal D-3(a) declaration: only the few public IDs the page
- * ships with, each overriding a single axis. Deliberately NOT a per-model
- * parameter matrix — the schema/modality derivation below owns everything it
- * can express on its own.
- */
-type ParamOverride = {
-  minDuration?: number
-  maxDuration?: number
-  ratios?: string[]
-  resolutions?: string[]
-  qualities?: string[]
-}
-
-const PARAM_OVERRIDES: Record<string, ParamOverride> = {
-  'seedance-2-5': {
-    minDuration: 4,
-    maxDuration: 30,
-    ratios: ['auto', '16:9', '9:16', '1:1', '4:3', '3:4', '21:9'],
-    resolutions: ['480p', '720p', '1080p'],
-  },
-  'seedance-2-0': {
-    minDuration: 4,
-    maxDuration: 15,
-    ratios: ['auto', '16:9', '9:16', '1:1'],
-    resolutions: ['480p', '720p', '1080p'],
-  },
-  'kling-v3': {
-    minDuration: 5,
-    maxDuration: 10,
-    ratios: ['16:9', '9:16', '1:1'],
-    resolutions: ['720p', '1080p'],
-  },
-  'minimax-h3': {
-    minDuration: 4,
-    maxDuration: 15,
-    ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'],
-    resolutions: ['768P', '2K'],
-  },
-  'minimax-h3-task': {
-    minDuration: 4,
-    maxDuration: 15,
-    ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'],
-    resolutions: ['768P', '2K'],
-  },
-  'gpt-image-2.5': {
-    ratios: ['auto', '1:1', '3:2', '2:3', '16:9', '9:16', '4:3', '3:4'],
-    resolutions: ['1K', '2K', '4K'],
-    qualities: ['low', 'medium', 'high'],
-  },
-}
 
 const IMAGE_RATIOS = ['1:1', '3:2', '2:3', '16:9', '9:16', '4:3', '3:4']
 const IMAGE_RESOLUTIONS = ['1K', '2K', '4K']
@@ -136,6 +79,78 @@ const SCHEMA_FIELDS = {
   audio: ['generate_audio', 'audio'],
   sizeMode: ['size'],
 } as const
+
+/** Formats the image edit surface takes when a contract declares none. */
+const DEFAULT_IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp'
+const DEFAULT_VIDEO_ACCEPT = 'video/mp4,video/quicktime'
+const DEFAULT_AUDIO_ACCEPT = 'audio/wav,audio/mpeg'
+const DEFAULT_FILE_ACCEPT = 'application/pdf'
+
+const MIME_BY_FORMAT: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  avif: 'image/avif',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  quicktime: 'video/quicktime',
+  webm: 'video/webm',
+  mpeg: 'video/mpeg',
+  mpg: 'video/mpeg',
+  wav: 'audio/wav',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  ogg: 'audio/ogg',
+  flac: 'audio/flac',
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
+  md: 'text/markdown',
+}
+
+type MediaInputKind = 'image' | 'video' | 'audio' | 'file'
+
+function defaultAccept(kind: MediaInputKind): string {
+  if (kind === 'video') return DEFAULT_VIDEO_ACCEPT
+  if (kind === 'audio') return DEFAULT_AUDIO_ACCEPT
+  if (kind === 'file') return DEFAULT_FILE_ACCEPT
+  return DEFAULT_IMAGE_ACCEPT
+}
+
+/**
+ * The `accept` attribute for one slot.
+ *
+ * Contract formats may be bare extensions (`jpeg`, `png`) or MIME types; the
+ * browser and the selection guard both need MIME types, so bare tokens are
+ * mapped where the vocabulary is known. An unknown token is dropped rather than
+ * turned into a guessed MIME type.
+ */
+function acceptAttribute(
+  allowedMimes: string[] | undefined,
+  kind: MediaInputKind
+): string {
+  if (!allowedMimes?.length) return defaultAccept(kind)
+  const mimes: string[] = []
+  for (const raw of allowedMimes) {
+    const token = raw.trim().toLowerCase()
+    if (!token) continue
+    const mime = token.includes('/') ? token : (MIME_BY_FORMAT[token] ?? '')
+    if (mime && !mimes.includes(mime)) mimes.push(mime)
+  }
+  return mimes.length > 0 ? mimes.join(',') : defaultAccept(kind)
+}
 
 function parseTags(model: PricingModel): string[] {
   return (model.tags ?? '')
@@ -176,77 +191,37 @@ function acceptsReferenceMedia(model: PricingModel): boolean {
   )
 }
 
-/** Formats the image edit surface takes; a model not listed falls back to this. */
-const DEFAULT_REFERENCE_IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp'
-
 /**
- * Reference-image limits, per model, from each vendor's own documentation.
+ * The flat form's single image-reference slot, limited by the contract.
  *
- * - `gpt-image-2.5` — OpenAI images edit: up to **16** images, prompt up to
- *   32000 characters. OpenAI publishes **no per-reference-file byte cap**: the
- *   only "50MB" figure in its image guide sits under "Mask requirements" and
- *   covers the image being edited together with its mask, and the API reference
- *   that defines the `image` array mentions no size at all. No cap is asserted
- *   here rather than shipping a number the vendor never stated.
- * - `nano-banana-pro` / `nano-banana-2` — Google Gemini 3 image models: up to
- *   **14** reference images.
- * - `seedream-5-0-pro` — Volcengine Doubao Seedream 5.0 Pro: multi-image to a
- *   single image takes **2–10** references. (The 2–14 figure on the same page
- *   belongs to Seedream 5.0 lite / 4.5 / 4.0, and our model explicitly does not
- *   support grouped generation.)
- * - `qwen-image-3-0` — Alibaba Model Studio image edit: **1–3** images, each
- *   **no larger than 10MB**.
- * - `grok-imagine-image-*` — xAI Imagine: up to **5** reference images.
- *
- * These are vendor ceilings. A reseller channel may accept fewer, so a request
- * that passes here can still be refused upstream; the limit exists to stop the
- * browser from uploading files no documented upstream would take. A model with
- * no documented byte ceiling therefore carries no `maxBytes`.
+ * The ceiling is `contract.reference_images`; a model without a contract keeps
+ * its previous one-image fallback instead of gaining a limit nobody stated.
  */
-type ReferenceImageLimit = {
-  accept: string
-  maxCount: number
-  /** Per-file ceiling in bytes, only where the vendor documents one. */
-  maxBytes?: number
-}
+function referenceMediaControl(model: PricingModel): ParamControl | undefined {
+  if (!acceptsReferenceMedia(model)) return undefined
+  const declared = model.contract?.reference_images
+  if (declared && declared.max === 0) return undefined
 
-const MEGABYTE = 1024 * 1024
-
-const REFERENCE_IMAGE_LIMITS: Record<string, ReferenceImageLimit> = {
-  'gpt-image-2.5': {
-    accept: DEFAULT_REFERENCE_IMAGE_ACCEPT,
-    maxCount: 16,
-  },
-  'nano-banana-pro': {
-    accept: DEFAULT_REFERENCE_IMAGE_ACCEPT,
-    maxCount: 14,
-  },
-  'nano-banana-2': {
-    accept: DEFAULT_REFERENCE_IMAGE_ACCEPT,
-    maxCount: 14,
-  },
-  'seedream-5-0-pro': {
-    accept: DEFAULT_REFERENCE_IMAGE_ACCEPT,
-    maxCount: 10,
-  },
-  'qwen-image-3-0': {
-    accept: DEFAULT_REFERENCE_IMAGE_ACCEPT,
-    maxCount: 3,
-    maxBytes: 10 * MEGABYTE,
-  },
-}
-
-/** What an undocumented model falls back to: one image, the common formats. */
-const FALLBACK_REFERENCE_IMAGE_LIMIT: ReferenceImageLimit = {
-  accept: DEFAULT_REFERENCE_IMAGE_ACCEPT,
-  maxCount: 1,
-}
-
-/** The reference slot's own limits, resolved per model. */
-function referenceMediaLimits(model: PricingModel): ReferenceImageLimit {
-  return (
-    REFERENCE_IMAGE_LIMITS[model.model_name] ?? FALLBACK_REFERENCE_IMAGE_LIMIT
-  )
+  const maxCount = declared?.max ?? 1
+  const accept = acceptAttribute(declared?.formats, 'image')
+  const control: ParamControl = {
+    key: 'reference_media',
+    labelKey: 'Reference images',
+    kind: 'media',
+    defaultValue: [],
+    accept,
+    maxCount,
+  }
+  if (declared?.max_bytes_each !== undefined) {
+    control.maxBytes = declared.max_bytes_each
+  }
+  if (!declared?.formats?.length) {
+    control.hintKey =
+      maxCount === 1
+        ? 'JPG / PNG / WebP — one file'
+        : 'JPG / PNG / WebP — up to {{count}} files'
+  }
+  return control
 }
 
 /** Enum values declared by the catalog win over the modality defaults. */
@@ -312,14 +287,8 @@ function segmented(
   }
 }
 
-function buildDurationOptions(
-  min: number,
-  max: number,
-  override?: ParamOverride
-): ParamOption[] {
-  const lower = override?.minDuration ?? min
-  const upper = override?.maxDuration ?? max
-  if (!Number.isFinite(lower) || !Number.isFinite(upper) || upper < lower) {
+function buildDurationOptions(min: number, max: number): ParamOption[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max < min) {
     return [
       { value: '4' },
       { value: '5' },
@@ -328,19 +297,19 @@ function buildDurationOptions(
       { value: '12' },
     ]
   }
-  const candidates = new Set<number>([lower, upper])
+  const candidates = new Set<number>([min, max])
   for (const step of [4, 5, 6, 8, 10, 12, 15]) {
-    if (step >= lower && step <= upper) candidates.add(step)
+    if (step >= min && step <= max) candidates.add(step)
   }
   return [...candidates]
     .sort((a, b) => a - b)
     .map((value) => ({ value: String(value) }))
 }
 
+/** Fallback image controls for a model whose contract states no parameters. */
 function buildImageControls(
   schema: BillingUsageSchema | undefined,
-  override: ParamOverride | undefined,
-  contract?: ModelContract
+  contract: ModelContract | undefined
 ): ParamControl[] {
   const controls: ParamControl[] = []
   const ratioOptions = enumOptions(schema, SCHEMA_FIELDS.ratio)
@@ -360,7 +329,7 @@ function buildImageControls(
     chips(
       'aspect_ratio',
       'Aspect ratio',
-      override?.ratios ?? IMAGE_RATIOS,
+      declaredList(contract?.aspect_ratios) ?? IMAGE_RATIOS,
       '1:1',
       ratioOptions
     )
@@ -373,20 +342,13 @@ function buildImageControls(
       // resolutions. Either outranks the modality default.
       declaredList(contract?.output_sizes) ??
         declaredList(contract?.resolutions) ??
-        override?.resolutions ??
         IMAGE_RESOLUTIONS,
       '1K',
       resolutionOptions
     )
   )
   controls.push(
-    segmented(
-      'quality',
-      'Quality',
-      override?.qualities ?? IMAGE_QUALITIES,
-      'medium',
-      qualityOptions
-    )
+    segmented('quality', 'Quality', IMAGE_QUALITIES, 'medium', qualityOptions)
   )
   controls.push(
     segmented(
@@ -397,8 +359,6 @@ function buildImageControls(
       backgroundOptions
     )
   )
-  // The image path read the contract too: an image model that publishes its
-  // accepted containers must not be offered the modality defaults instead.
   controls.push(
     chips(
       'output_format',
@@ -408,7 +368,6 @@ function buildImageControls(
       formatOptions
     )
   )
-
   controls.push({
     key: 'seed',
     labelKey: 'Seed',
@@ -445,17 +404,12 @@ function buildDurationControl(
   perCall: boolean,
   envelope: DurationEnvelope | undefined,
   schema: BillingUsageSchema | undefined,
-  override: ParamOverride | undefined,
   durations?: ModelContract['durations_seconds']
 ): ParamControl | undefined {
   if (!perCall) {
-    // A declared enum is the model's own domain; absent one, the modality
-    // ladder is the only shape available.
     const declared = enumOptions(schema, SCHEMA_FIELDS.duration)
     const options =
-      declaredSeconds(durations) ??
-      declared ??
-      buildDurationOptions(4, 12, override)
+      declaredSeconds(durations) ?? declared ?? buildDurationOptions(4, 12)
     return {
       key: 'duration',
       labelKey: 'Duration (seconds)',
@@ -469,8 +423,6 @@ function buildDurationControl(
 
   if (envelope?.kind === 'fixed') {
     const seconds = String(envelope.seconds)
-    // `numeric` has to survive the lock: without it the value reaches the body
-    // as a string and the gateway rejects the type.
     return {
       ...lockControl(
         chips('duration', 'Duration (seconds)', [seconds], seconds),
@@ -547,9 +499,9 @@ function declaredList(values: string[] | undefined): string[] | undefined {
   return values && values.length > 0 ? values : undefined
 }
 
+/** Fallback video controls for a model whose contract states no parameters. */
 function buildVideoControls(
   schema: BillingUsageSchema | undefined,
-  override: ParamOverride | undefined,
   model: PricingModel
 ): ParamControl[] {
   const controls: ParamControl[] = []
@@ -559,9 +511,8 @@ function buildVideoControls(
   const resolutionOptions = enumOptions(schema, SCHEMA_FIELDS.resolution)
   const formatOptions = enumOptions(schema, SCHEMA_FIELDS.format)
 
-  // A declared axis outranks every hand-written table: the contract is the
-  // model's own statement of what it accepts, and those tables exist only
-  // because it was previously unavailable.
+  // A declared axis outranks every hand-written default: the contract is the
+  // model's own statement of what it accepts.
   const declaredRatios = declaredList(contract?.aspect_ratios)
   const declaredResolutions = declaredList(contract?.resolutions)
   const declaredFormats = declaredList(contract?.output_formats)
@@ -581,7 +532,7 @@ function buildVideoControls(
     ...chips(
       'aspect_ratio',
       'Aspect ratio',
-      declaredRatios ?? declaration?.ratios ?? override?.ratios ?? VIDEO_RATIOS,
+      declaredRatios ?? declaration?.ratios ?? VIDEO_RATIOS,
       'auto',
       ratioOptions
     ),
@@ -596,7 +547,6 @@ function buildVideoControls(
       provisionedResolutions ??
         declaredResolutions ??
         declaration?.resolutions ??
-        override?.resolutions ??
         VIDEO_RESOLUTIONS,
       provisionedResolutions?.[0] ?? '480p',
       resolutionOptions
@@ -607,7 +557,6 @@ function buildVideoControls(
     perCall,
     declaration?.duration ?? declaredEnvelope(contract?.durations_seconds),
     schema,
-    override,
     contract?.durations_seconds
   )
   if (durationControl) controls.push(durationControl)
@@ -647,16 +596,429 @@ function buildVideoControls(
   return controls
 }
 
+/** Slot labels for contract inputs, as i18n keys. */
+const SLOT_LABEL_KEYS: Record<string, string> = {
+  prompt: 'Prompt',
+  first_frame: 'First frame',
+  last_frame: 'Last frame',
+  reference_images: 'Reference images',
+  reference_videos: 'Reference videos',
+  reference_audios: 'Reference audio',
+  source_videos: 'Source video',
+  reference_image: 'Reference image',
+  reference_audio: 'Reference audio',
+  file: 'Document',
+  url: 'Webpage URL',
+}
+
+/** Parameter labels for contract parameters, as i18n keys. */
+const PARAM_LABEL_KEYS: Record<string, string> = {
+  seed: 'Seed',
+  n: 'Images per request',
+  quality: 'Quality',
+  background: 'Background',
+  aspect_ratio: 'Aspect ratio',
+  resolution: 'Resolution',
+  duration: 'Duration (seconds)',
+  generate_audio: 'Generate audio',
+  output_format: 'Output format',
+}
+
+function slotLabelKey(slot: string): string {
+  return SLOT_LABEL_KEYS[slot] ?? slot.replaceAll('_', ' ')
+}
+
+function paramLabelKey(name: string): string {
+  return PARAM_LABEL_KEYS[name] ?? name.replaceAll('_', ' ')
+}
+
+/** The control shape one contract parameter maps onto. */
+function contractParameterKind(param: ContractParameter): ParamControl['kind'] {
+  if (param.name === 'quality' || param.name === 'background') {
+    return 'segmented'
+  }
+  if (param.type === 'integer' || param.type === 'number') return 'slider'
+  if (param.type === 'enum') return 'chips'
+  if (param.type === 'boolean') return 'switch'
+  return 'text'
+}
+
+/**
+ * Narrow a resolution control to the tiers the model's catalog provisions.
+ *
+ * Tier groups are a billing/routing fact the contract does not carry; offering
+ * a resolution without a provisioned group would pin the request to a group
+ * that cannot serve it. A model with no provisioned tiers keeps the contract's
+ * full list.
+ */
+function applyProvisionedResolutions(
+  model: PricingModel,
+  control: ParamControl
+): ParamControl {
+  if (control.key !== 'resolution') return control
+  if (control.kind !== 'chips' && control.kind !== 'segmented') return control
+
+  const tiers = tierResolutions(model)
+  if (!tiers?.length) return control
+  const options = (control.options ?? []).filter((option) =>
+    tiers.some((tier) => tier.toLowerCase() === option.value.toLowerCase())
+  )
+  if (options.length === 0) return control
+  const keepsDefault = options.some(
+    (option) => option.value === control.defaultValue
+  )
+  return {
+    ...control,
+    options,
+    defaultValue: keepsDefault ? control.defaultValue : options[0].value,
+  }
+}
+
+/**
+ * One control per contract parameter.
+ *
+ * `fixed` collapses the control to the single value the service accepts and
+ * explains why; `enum` is a chip row (quality and background read better as a
+ * segmented control); numbers are sliders and booleans switches. Bounds and
+ * defaults come from the contract, never from a client-side table.
+ */
+function contractParameterControl(param: ContractParameter): ParamControl {
+  const labelKey = paramLabelKey(param.name)
+  const advanced = param.name === 'seed'
+
+  if (param.fixed !== undefined) {
+    const value = String(param.fixed)
+    const option: ParamOption = { value }
+    if (param.name === 'duration' && value === '-1') option.labelKey = 'Auto'
+    return {
+      key: param.name,
+      labelKey,
+      kind: contractParameterKind(param),
+      options: [option],
+      defaultValue: value,
+      numeric: param.type === 'integer' || param.type === 'number',
+      advanced,
+      lockedReasonKey: 'Locked by the service contract',
+    }
+  }
+
+  if (param.type === 'enum') {
+    const values = (param.enum ?? []).map((value) => String(value))
+    const options = values.map((value) => ({ value }))
+    const declaredDefault =
+      param.default === undefined ? values[0] : String(param.default)
+    return {
+      key: param.name,
+      labelKey,
+      kind:
+        param.name === 'quality' || param.name === 'background'
+          ? 'segmented'
+          : 'chips',
+      options,
+      defaultValue: values.includes(declaredDefault)
+        ? declaredDefault
+        : values[0],
+      advanced,
+    }
+  }
+
+  if (param.type === 'integer' || param.type === 'number') {
+    const min = param.minimum ?? 0
+    const max = param.maximum ?? min
+    return {
+      key: param.name,
+      labelKey,
+      kind: 'slider',
+      min,
+      max,
+      step: param.step ?? 1,
+      defaultValue: typeof param.default === 'number' ? param.default : min,
+      numeric: true,
+      advanced,
+    }
+  }
+
+  if (param.type === 'boolean') {
+    return {
+      key: param.name,
+      labelKey,
+      kind: 'switch',
+      defaultValue: param.default === true,
+      advanced,
+    }
+  }
+
+  return {
+    key: param.name,
+    labelKey,
+    kind: 'text',
+    defaultValue: param.default === undefined ? '' : String(param.default),
+    advanced,
+  }
+}
+
+/** The upload role one contract input plays, when it is a media slot. */
+function mediaRoleFor(
+  input: ContractInput
+): ParamControl['mediaRole'] | undefined {
+  if (input.slot === 'first_frame') return 'first_frame'
+  if (input.slot === 'last_frame') return 'last_frame'
+  if (input.type === 'video') return 'reference_video'
+  if (input.type === 'audio') return 'reference_audio'
+  if (input.type === 'image') return 'reference_image'
+  return undefined
+}
+
+/** One control per contract input slot. */
+function contractInputControl(
+  model: PricingModel,
+  input: ContractInput
+): ParamControl | undefined {
+  if (input.type === 'text') {
+    return {
+      key: input.slot,
+      labelKey: slotLabelKey(input.slot),
+      kind: 'text',
+      defaultValue: '',
+      maxChars: declaredPromptMax(model.contract),
+    }
+  }
+  if (input.type === 'url') {
+    return {
+      key: input.slot,
+      labelKey: slotLabelKey(input.slot),
+      kind: 'text',
+      defaultValue: '',
+      placeholderKey: 'Enter a URL',
+    }
+  }
+  if (
+    input.type !== 'image' &&
+    input.type !== 'video' &&
+    input.type !== 'audio' &&
+    input.type !== 'file'
+  ) {
+    return undefined
+  }
+
+  const mediaRole = mediaRoleFor(input)
+  const control: ParamControl = {
+    key: input.slot,
+    labelKey: slotLabelKey(input.slot),
+    kind: 'media',
+    defaultValue: [],
+    accept: acceptAttribute(input.allowedMimes, input.type),
+  }
+  if (mediaRole) control.mediaRole = mediaRole
+  if (input.max !== undefined) control.maxCount = input.max
+  // A document slot is a single file even when the contract states no count:
+  // the wire field is one `file_url`, not a list.
+  if (input.type === 'file' && input.max === undefined) control.maxCount = 1
+  if (input.maxSizeMb !== undefined) {
+    control.maxBytes = Math.round(input.maxSizeMb * 1024 * 1024)
+  }
+  return control
+}
+
+/** Generic operation slots used only when no contract operation is published. */
+function legacyOperationInputs(
+  operation: PlaygroundOperation
+): ContractInput[] {
+  switch (operation) {
+    case 'first_frame':
+      return [
+        {
+          slot: 'first_frame',
+          type: 'image',
+          role: 'first_frame',
+          required: true,
+          min: 1,
+          max: 1,
+        },
+      ]
+    case 'first_last_frame':
+      return [
+        {
+          slot: 'first_frame',
+          type: 'image',
+          role: 'first_frame',
+          required: true,
+          min: 1,
+          max: 1,
+        },
+        {
+          slot: 'last_frame',
+          type: 'image',
+          role: 'last_frame',
+          required: true,
+          min: 1,
+          max: 1,
+        },
+      ]
+    case 'video_multi_ref':
+      return [
+        {
+          slot: 'reference_images',
+          type: 'image',
+          role: 'reference',
+          required: false,
+          min: 0,
+        },
+        {
+          slot: 'reference_videos',
+          type: 'video',
+          role: 'reference',
+          required: false,
+          min: 0,
+        },
+        {
+          slot: 'reference_audios',
+          type: 'audio',
+          role: 'reference',
+          required: false,
+          min: 0,
+        },
+      ]
+    case 'video_edit':
+    case 'video_extend':
+      return [
+        {
+          slot: 'source_videos',
+          type: 'video',
+          role: 'source',
+          required: true,
+          min: 1,
+          max: 1,
+        },
+      ]
+    case 'end_frame':
+      return [
+        {
+          slot: 'last_frame',
+          type: 'image',
+          role: 'last_frame',
+          required: true,
+          min: 1,
+          max: 1,
+        },
+      ]
+    case 'document_to_video':
+      return [
+        {
+          slot: 'file',
+          type: 'file',
+          required: true,
+          min: 1,
+          max: 1,
+        },
+      ]
+    case 'webpage_to_video':
+      return [{ slot: 'url', type: 'url', required: true }]
+    case 'digital_human':
+      return [
+        {
+          slot: 'reference_image',
+          type: 'image',
+          required: true,
+          min: 1,
+          max: 1,
+        },
+        {
+          slot: 'reference_audio',
+          type: 'audio',
+          required: true,
+          min: 1,
+          max: 1,
+        },
+      ]
+    case 'text_to_video':
+    default:
+      return []
+  }
+}
+
+/** Contract-declared controls for one operation, or undefined when absent. */
+function contractOperationControls(
+  model: PricingModel,
+  operation: PlaygroundOperation
+): ParamControl[] | undefined {
+  const declared = findContractOperation(model.contract, operation)
+  if (!declared?.executable) return undefined
+
+  const controls: ParamControl[] = []
+  for (const input of declared.inputs ?? []) {
+    const control = contractInputControl(model, input)
+    if (control) controls.push(control)
+  }
+  for (const param of declared.parameters ?? []) {
+    controls.push(
+      applyProvisionedResolutions(model, contractParameterControl(param))
+    )
+  }
+  return controls
+}
+
+/** Contract parameters of the image operation the flat image form renders. */
+function imageContractControls(
+  model: PricingModel
+): ParamControl[] | undefined {
+  const contract = model.contract
+  if (!contract) return undefined
+
+  const operation = ['text_to_image', 'image_to_image']
+    .map((id) => findContractOperation(contract, id))
+    .find((candidate) => candidate?.executable === true)
+  if (!operation) return undefined
+
+  const controls: ParamControl[] = [
+    {
+      key: 'size_mode',
+      labelKey: 'Size mode',
+      kind: 'segmented',
+      options: [{ value: 'auto' }, { value: 'ratio' }, { value: 'custom' }],
+      defaultValue: 'auto',
+    },
+    ...(operation.parameters ?? []).map(contractParameterControl),
+  ]
+  const sizes = operation.output?.sizes
+  if (
+    sizes?.length &&
+    !controls.some((control) => control.key === 'resolution')
+  ) {
+    controls.push({
+      key: 'resolution',
+      labelKey: 'Resolution',
+      kind: 'chips',
+      options: sizes.map((value) => ({ value })),
+      defaultValue: sizes[0],
+    })
+  }
+
+  const formats = operation.output?.formats
+  if (
+    formats?.length &&
+    !controls.some((control) => control.key === 'output_format')
+  ) {
+    controls.push({
+      key: 'output_format',
+      labelKey: 'Output format',
+      kind: 'chips',
+      options: formats.map((value) => ({ value })),
+      defaultValue: formats[0],
+    })
+  }
+  return controls
+}
+
 /**
  * Derives the playground form schema for one model.
  *
- * Precedence: catalog `billing_usage_schema` enums → modality defaults →
- * the small PARAM_OVERRIDES table above.
+ * An image model whose contract declares parameters renders those controls; a
+ * model whose contract states none keeps the modality-derived fallback.
  */
 export function buildParamSchema(model: PricingModel): PlaygroundParamSchema {
   const modality = resolveModality(model)
   const schema = model.billing_usage_schema
-  const override = PARAM_OVERRIDES[model.model_name]
 
   const capabilities: string[] = []
   if (modality === 'image') {
@@ -688,28 +1050,15 @@ export function buildParamSchema(model: PricingModel): PlaygroundParamSchema {
     },
   ]
 
-  if (acceptsReferenceMedia(model)) {
-    const limits = referenceMediaLimits(model)
-    controls.push({
-      key: 'reference_media',
-      labelKey: 'Reference images',
-      kind: 'media',
-      defaultValue: [],
-      accept: limits.accept,
-      maxCount: limits.maxCount,
-      maxBytes: limits.maxBytes,
-      hintKey:
-        limits.maxCount === 1
-          ? 'JPG / PNG / WebP — one file'
-          : 'JPG / PNG / WebP — up to {{count}} files',
-    })
-  }
+  const reference = referenceMediaControl(model)
+  if (reference) controls.push(reference)
 
-  controls.push(
-    ...(modality === 'image'
-      ? buildImageControls(schema, override, model.contract)
-      : buildVideoControls(schema, override, model))
-  )
+  if (modality === 'image') {
+    const contracted = imageContractControls(model)
+    controls.push(...(contracted ?? buildImageControls(schema, model.contract)))
+  } else {
+    controls.push(...buildVideoControls(schema, model))
+  }
 
   return {
     modelId: model.model_name,
@@ -719,30 +1068,6 @@ export function buildParamSchema(model: PricingModel): PlaygroundParamSchema {
     advancedCount: controls.filter((control) => control.advanced === true)
       .length,
   }
-}
-
-/**
- * Media slot for one mode, carrying the ceiling the model documents.
- *
- * A single slot (`first_frame`, `source_videos`) renders as one fixed box
- * instead of a growing list, because the gateway wants exactly one there.
- */
-function buildMediaControl(
-  modelId: string,
-  spec: ReturnType<typeof operationMedia>[number]
-): ParamControl {
-  const control: ParamControl = {
-    key: spec.key,
-    labelKey: spec.labelKey,
-    kind: 'media',
-    defaultValue: [],
-    mediaRole: spec.mediaRole,
-    accept: mediaAccept(spec.accept),
-    hintKey: spec.hintKey,
-  }
-  const cap = spec.single ? 1 : mediaCap(modelId, spec.accept)
-  if (cap !== undefined) control.maxCount = cap
-  return control
 }
 
 /** Pins a control to the mode's forced value and explains why it cannot move. */
@@ -767,10 +1092,9 @@ function lockControl(
 /**
  * Derives the form for one (model, mode) pair.
  *
- * The mode-first counterpart to `buildParamSchema`: the same parameter controls,
- * restricted to the slots the mode accepts and pinned wherever the gateway pins
- * them. `capabilities` stays empty because the mode selector already says more
- * than chips could, and the chips component is not rendered here.
+ * Contract-declared inputs and parameters are the authority; a model without a
+ * contract operation keeps the previous operation template so the fallback path
+ * does not regress.
  */
 export function buildOperationSchema(
   model: PricingModel,
@@ -778,8 +1102,19 @@ export function buildOperationSchema(
 ): PlaygroundParamSchema {
   const modality = resolveModality(model)
   const schema = model.billing_usage_schema
-  const override = PARAM_OVERRIDES[model.model_name]
-  const locks = operationLocks(operation)
+  const contracted = contractOperationControls(model, operation)
+
+  if (contracted) {
+    return {
+      modelId: model.model_name,
+      modality,
+      capabilities: [],
+      controls: contracted,
+      advancedCount: contracted.filter((control) => control.advanced === true)
+        .length,
+      operation,
+    }
+  }
 
   const controls: ParamControl[] = [
     {
@@ -791,15 +1126,21 @@ export function buildOperationSchema(
     },
   ]
 
-  for (const spec of operationMedia(operation)) {
-    controls.push(buildMediaControl(model.model_name, spec))
+  for (const input of legacyOperationInputs(operation)) {
+    const control = contractInputControl(model, input)
+    if (!control) continue
+    if (operation === 'video_multi_ref' && input.slot === 'reference_audios') {
+      control.hintKey = 'Needs at least one reference image or video'
+    }
+    controls.push(control)
   }
 
   const parameterControls =
     modality === 'image'
-      ? buildImageControls(schema, override, model.contract)
-      : buildVideoControls(schema, override, model)
+      ? buildImageControls(schema, model.contract)
+      : buildVideoControls(schema, model)
 
+  const locks = operationLocks(operation)
   for (const control of parameterControls) {
     const reasonKey = locks[control.key]
     const forced = lockedValue(control.key)

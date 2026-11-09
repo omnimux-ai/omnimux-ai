@@ -899,6 +899,8 @@
     "Authorize CLI": "Autoriser le CLI",
     "Authorize OmniMux CLI": "Autoriser le CLI OmniMux",
     "Authorize this device to use OmniMux CLI for 30 days. This replaces only your previous CLI device token; other access tokens stay active.": "Autoriser cet appareil à utiliser OmniMux CLI pendant 30 jours. Seul votre précédent jeton d’appareil CLI sera remplacé ; les autres jetons d’accès restent actifs.",
+    "Unknown CLI device": "Appareil CLI inconnu",
+    "Only continue if you just started this request in your terminal.": "Ne continuez que si vous venez de lancer cette demande dans votre terminal.",
     "Auto": "Automatique",
     "Auto (Circuit Breaker)": "Auto (Disjoncteur)",
     "Auto assignment order": "Ordre d'affectation automatique",
@@ -9426,6 +9428,14 @@
     "Top up successful": "Recharge réussie",
     "Top up to continue this generation": "Rechargez pour poursuivre cette génération",
     "Top up": "Recharger",
-    "Your credits are ready — generation resumes automatically.": "Vos crédits sont disponibles — la génération reprend automatiquement."
+    "Your credits are ready — generation resumes automatically.": "Vos crédits sont disponibles — la génération reprend automatiquement.",
+    "Locked by the service contract": "Verrouillé par le contrat de service",
+    "Document": "Document",
+    "Webpage URL": "URL de la page web",
+    "End frame": "Dernière image",
+    "Document to video": "Document en vidéo",
+    "Webpage to video": "Page web en vidéo",
+    "Digital human": "Humain numérique",
+    "Enter a URL": "Saisir une URL"
   }
 }

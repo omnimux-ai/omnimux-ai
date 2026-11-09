@@ -275,25 +275,36 @@ func (t *TwoFA) ValidateTOTPAndUpdateUsage(code string) (bool, error) {
 		return false, fmt.Errorf("the account is locked, retry after %v", t.LockedUntil.Format("2006-01-02 15:04:05"))
 	}
 
-	// 验证TOTP码
-	if !common.ValidateTOTPCode(t.Secret, code) {
-		// 增加失败次数
+	// 验证TOTP码并取得匹配的 time-step。LastUsedAt 之前只表示“最近使用”，
+	// 现在同时作为单次性的持久化 step 栅栏。
+	now := time.Now().UTC()
+	step, valid := common.ValidateTOTPCodeStep(t.Secret, code, now)
+	if !valid {
 		if err := t.IncrementFailedAttempts(); err != nil {
 			return false, err
 		}
 		return false, nil
 	}
+	stepStart := time.Unix(step*30, 0).UTC()
 
-	// 验证成功，重置失败次数并更新最后使用时间
-	now := time.Now()
 	t.FailedAttempts = 0
 	t.LockedUntil = nil
 	t.LastUsedAt = &now
-
-	if err := t.updateUsageState(); err != nil {
-		return false, err
+	result := DB.Model(&TwoFA{}).
+		Where("id = ? AND (last_used_at IS NULL OR last_used_at < ?)", t.Id, stepStart).
+		Updates(map[string]any{
+			"failed_attempts": t.FailedAttempts,
+			"locked_until":    t.LockedUntil,
+			"last_used_at":    t.LastUsedAt,
+		})
+	if result.Error != nil {
+		return false, result.Error
 	}
-
+	if result.RowsAffected == 0 {
+		// A concurrent request already consumed this time-step, or the same
+		// code was replayed after a successful use.
+		return false, nil
+	}
 	return true, nil
 }
 

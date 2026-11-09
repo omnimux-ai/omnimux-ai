@@ -1,12 +1,15 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/storage"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,6 +43,37 @@ func TestStorageArtifactStoreRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resolved)
 	assert.Equal(t, ref.ObjectKey, resolved.ObjectKey)
+}
+
+func TestStorageArtifactStoreSanitizesUnsafeMimeTypes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storage.SetGlobalDriver(storage.NewLocalStorageDriver(t.TempDir()))
+	t.Cleanup(storage.ResetGlobalDriver)
+
+	store := GetTaskArtifactStore()
+	task := &model.Task{TaskID: "task-mime-1"}
+	ref, err := store.Persist(t.Context(), task, types.TaskArtifact{
+		Key: "page", Type: "file", MimeType: "text/html",
+	}, strings.NewReader("<script>alert(1)</script>"))
+	require.NoError(t, err)
+	require.NotNil(t, ref)
+	assert.Equal(t, "application/octet-stream", ref.MimeType)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	require.NoError(t, store.Serve(c, task, ref))
+	assert.Equal(t, "application/octet-stream", recorder.Header().Get("Content-Type"))
+	assert.Equal(t, "attachment", strings.SplitN(recorder.Header().Get("Content-Disposition"), ";", 2)[0])
+	assert.Equal(t, "sandbox; default-src 'none'", recorder.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
+
+	safeRef, err := store.Persist(t.Context(), task, types.TaskArtifact{
+		Key: "image", Type: "image", MimeType: "image/png",
+	}, strings.NewReader("png"))
+	require.NoError(t, err)
+	require.NotNil(t, safeRef)
+	assert.Equal(t, "image/png", safeRef.MimeType)
 }
 
 func TestStorageArtifactStoreRejectsUnsafeKeys(t *testing.T) {

@@ -172,6 +172,17 @@ func TestStoredInlineImageUsesBothNativeContentPaths(t *testing.T) {
 	assert.Equal(t, http.StatusGone, recorder.Code)
 }
 
+func TestVideoProxyRejectsForeignAuthenticatedTaskID(t *testing.T) {
+	task := setupGenericTaskTest(t)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("id", task.UserId+1)
+	c.Params = gin.Params{{Key: "task_id", Value: task.TaskID}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/"+task.TaskID+"/content", nil)
+	VideoProxy(c)
+	assert.Equal(t, http.StatusNotFound, recorder.Code)
+}
+
 func TestStoredInlineImageContentDoesNotServeDiscardedOrVideoObjects(t *testing.T) {
 	for _, name := range []string{"discarded", "pending", "video"} {
 		t.Run(name, func(t *testing.T) {

@@ -899,6 +899,8 @@
     "Authorize CLI": "授权 CLI",
     "Authorize OmniMux CLI": "授权 OmniMux CLI",
     "Authorize this device to use OmniMux CLI for 30 days. This replaces only your previous CLI device token; other access tokens stay active.": "授权此设备使用 OmniMux CLI，有效期为 30 天。此次授权仅替换您之前的 CLI 设备令牌，其他访问令牌仍然有效。",
+    "Unknown CLI device": "未知 CLI 设备",
+    "Only continue if you just started this request in your terminal.": "仅当你刚刚在终端发起此请求时才继续。",
     "Auto": "自动",
     "Auto (Circuit Breaker)": "自动分组（熔断）",
     "Auto assignment order": "自动分配顺序",
@@ -9426,6 +9428,14 @@
     "Top up successful": "充值成功",
     "Top up to continue this generation": "充值以继续本次生成",
     "Top up": "充值",
-    "Your credits are ready — generation resumes automatically.": "积分已到账，生成将自动继续。"
+    "Your credits are ready — generation resumes automatically.": "积分已到账，生成将自动继续。",
+    "Locked by the service contract": "由服务契约锁定",
+    "Document": "文档",
+    "Webpage URL": "网页链接",
+    "End frame": "尾帧",
+    "Document to video": "文档生视频",
+    "Webpage to video": "网页生视频",
+    "Digital human": "数字人",
+    "Enter a URL": "输入链接"
   }
 }

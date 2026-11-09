@@ -899,6 +899,8 @@
     "Authorize CLI": "CLI を認証",
     "Authorize OmniMux CLI": "OmniMux CLI を認証",
     "Authorize this device to use OmniMux CLI for 30 days. This replaces only your previous CLI device token; other access tokens stay active.": "このデバイスで OmniMux CLI を30日間使用することを許可します。以前の CLI デバイストークンのみが置き換えられ、他のアクセストークンは引き続き有効です。",
+    "Unknown CLI device": "不明な CLI デバイス",
+    "Only continue if you just started this request in your terminal.": "このリクエストをたった今ターミナルで開始した場合のみ続行してください。",
     "Auto": "自動",
     "Auto (Circuit Breaker)": "自動（サーキットブレーカー）",
     "Auto assignment order": "自動割り当て順序",
@@ -9426,6 +9428,14 @@
     "Top up successful": "チャージ完了",
     "Top up to continue this generation": "チャージしてこの生成を続行",
     "Top up": "チャージ",
-    "Your credits are ready — generation resumes automatically.": "クレジットが反映されました — 生成は自動的に再開されます。"
+    "Your credits are ready — generation resumes automatically.": "クレジットが反映されました — 生成は自動的に再開されます。",
+    "Locked by the service contract": "サービス契約により固定",
+    "Document": "ドキュメント",
+    "Webpage URL": "ウェブページのURL",
+    "End frame": "最終フレーム",
+    "Document to video": "ドキュメントから動画",
+    "Webpage to video": "ウェブページから動画",
+    "Digital human": "デジタルヒューマン",
+    "Enter a URL": "URLを入力"
   }
 }

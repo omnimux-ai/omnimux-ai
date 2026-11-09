@@ -63,6 +63,7 @@ function grantResponse(userCode = 'ABCD-EFGH') {
         verification_context: {
           device_flow_id: 41,
           user_code: userCode.replace('-', ''),
+          client_name: 'omnimux-cli',
           scopes: ['profile:read'],
           expires_at: 9999999999,
         },
@@ -236,10 +237,15 @@ it('denying a code requires no verification and shows that no credentials were i
     await screen.findByText('No credentials were issued to the CLI.')
   ).toBeVisible()
   expect(api.get).not.toHaveBeenCalled()
-  expect(api.post).toHaveBeenCalledExactlyOnceWith(
+  expect(api.post).toHaveBeenCalledWith(
     '/api/user/device/deny',
     { user_code: 'ABCD-EFGH' },
     expect.not.objectContaining({ headers: expect.anything() })
+  )
+  expect(api.post).not.toHaveBeenCalledWith(
+    '/api/user/device/approve',
+    expect.anything(),
+    expect.anything()
   )
 })
 
@@ -366,6 +372,22 @@ it('signed-out authorization keeps the device code in the sign-in redirect', asy
   expect(api.post).not.toHaveBeenCalled()
 })
 
+it('shows the requesting device and scopes before approval', async () => {
+  renderAuthorization()
+  expect(await screen.findByText('omnimux-cli')).toBeVisible()
+  expect(screen.getByText('profile:read')).toBeVisible()
+  expect(
+    screen.getByText(
+      'Only continue if you just started this request in your terminal.'
+    )
+  ).toBeVisible()
+  expect(api.post).not.toHaveBeenCalledWith(
+    '/api/user/device/approve',
+    expect.anything(),
+    expect.anything()
+  )
+})
+
 it('the authorization page discloses creation, owned history, and account credit consumption before approval', async () => {
   renderAuthorization()
   expect(
@@ -384,7 +406,16 @@ it('the authorization page discloses creation, owned history, and account credit
     )
   ).toBeVisible()
   expect(screen.getByRole('button', { name: 'Authorize CLI' })).toBeEnabled()
-  expect(api.post).not.toHaveBeenCalled()
+  expect(api.post).not.toHaveBeenCalledWith(
+    '/api/user/device/approve',
+    expect.anything(),
+    expect.anything()
+  )
+  expect(api.post).not.toHaveBeenCalledWith(
+    '/api/verify',
+    expect.anything(),
+    expect.anything()
+  )
 })
 
 it.each(['grant', 'approval'] as const)(
@@ -428,9 +459,11 @@ it.each(['grant', 'approval'] as const)(
     ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Authorize CLI' })).toBeEnabled()
     if (stage === 'grant') {
-      expect(vi.mocked(api.post).mock.calls.map(([url]) => url)).toEqual([
-        '/api/user/device/code',
-      ])
+      expect(
+        vi.mocked(api.post).mock.calls.map(([url]) => url).every(
+          (url) => url === '/api/user/device/code'
+        )
+      ).toBe(true)
     }
   }
 )

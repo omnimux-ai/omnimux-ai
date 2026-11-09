@@ -86,6 +86,16 @@ func TestConnectExplicitZernioIgnoresDirectFlag(t *testing.T) {
 	assert.Zero(t, states, "Zernio entry must not create official OAuth state")
 }
 
+func TestConnectDirectRejectsForeignRedirect(t *testing.T) {
+	setupDirectDB(t)
+	require.NoError(t, model.DB.Create(&model.User{Id: 42, Username: "u42", Quota: 1000000}).Error)
+	_, err := NewService(testDirectConfig(t, "http://stub")).Connect(context.Background(), 42, ProviderTikTokDirect, "tiktok", "https://evil.example/phish")
+	require.ErrorIs(t, err, ErrRedirectDenied)
+	var states int64
+	require.NoError(t, model.DB.Model(&model.SocialOAuthState{}).Count(&states).Error)
+	assert.Zero(t, states, "a rejected redirect must not create an OAuth state")
+}
+
 func TestConnectDirectNotConfigured(t *testing.T) {
 	setupDirectDB(t)
 	cfg := testDirectConfig(t, "http://stub")

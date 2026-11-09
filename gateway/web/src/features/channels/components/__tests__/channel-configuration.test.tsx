@@ -328,7 +328,7 @@ test('an unavailable default URL endpoint keeps the fallback placeholder and all
         response: { status: 500 },
       })
     }
-    return originalGet?.(url, config)
+    return originalGet ? originalGet(url, config) : { data: { success: true } }
   })
   const put = vi
     .spyOn(api, 'put')
@@ -637,7 +637,7 @@ test('plugin loading failure can be retried while built-in providers remain sele
       fail = false
       throw new Error('Offline')
     }
-    return originalGet?.(url, config)
+    return originalGet ? originalGet(url, config) : { data: { success: true } }
   })
   render(<ConfigurationHarness />)
   expect(await screen.findByText('Failed to load plugins')).toBeVisible()
@@ -906,7 +906,7 @@ test('retrying extension metadata preserves the editable built-in draft and sele
       fail = false
       throw new Error('Plugin metadata unavailable')
     }
-    return originalGet?.(url, config)
+    return originalGet ? originalGet(url, config) : { data: { success: true } }
   })
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)
@@ -937,7 +937,7 @@ test('loading a replacement plugin preserves an already selected legacy creation
   const originalGet = vi.mocked(api.get).getMockImplementation()
   vi.mocked(api.get).mockImplementation(async (url, config) => {
     if (url === '/api/task_plugin_options') return reply.promise
-    return originalGet?.(url, config)
+    return originalGet ? originalGet(url, config) : { data: { success: true } }
   })
   const post = vi
     .spyOn(api, 'post')
@@ -1290,7 +1290,7 @@ test('editing opens the shared configuration and omits an unchanged key on updat
     if (url === '/api/channel/42') {
       return { data: { success: true, data: channel } }
     }
-    return originalGet?.(url, config)
+    return originalGet ? originalGet(url, config) : { data: { success: true } }
   })
   const put = vi
     .spyOn(api, 'put')
@@ -1428,7 +1428,7 @@ test('a failed detail request blocks updating until retry loads the saved channe
       fail = false
       throw new Error('Channel details unavailable')
     }
-    return originalGet?.(url, config)
+    return originalGet ? originalGet(url, config) : { data: { success: true } }
   })
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)
@@ -2172,7 +2172,7 @@ test('switching edited channels discards a pending model list from the previous 
     if (url === '/api/channel/fetch_models/43') {
       return { data: { success: true, data: ['second-model'] } }
     }
-    return originalGet?.(url, config)
+    return originalGet ? originalGet(url, config) : { data: { success: true } }
   })
   const user = userEvent.setup()
   const view = render(<ConfigurationHarness currentRow={editingChannel} />)
@@ -2571,7 +2571,7 @@ test('redirecting a recognized upstream name opens an empty alias draft without 
     if (url === '/api/channel/models') {
       return { data: { success: true, data: [{ id: 'gpt-4o' }] } }
     }
-    return baseGet?.(url, ...rest)
+    return baseGet ? baseGet(url, ...rest) : { data: { success: true } }
   })
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)
@@ -2609,7 +2609,7 @@ test('the redirect panel batch action starts empty and only applies explicitly s
     if (url === '/api/channel/models') {
       return { data: { success: true, data: [{ id: 'gpt-4o' }] } }
     }
-    return baseGet?.(url, ...rest)
+    return baseGet ? baseGet(url, ...rest) : { data: { success: true } }
   })
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)
@@ -2813,7 +2813,7 @@ test('a New API channel binds upstream task plugins and publishes their models',
     if (url === '/api/channel/42') {
       return { data: { success: true, data: channel } }
     }
-    return originalGet?.(url, config)
+    return originalGet ? originalGet(url, config) : { data: { success: true } }
   })
   const put = vi
     .spyOn(api, 'put')

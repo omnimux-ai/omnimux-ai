@@ -42,6 +42,7 @@ type DeviceGrantResponse = {
     verification_context: {
       device_flow_id: number
       user_code: string
+      client_name?: string
       scopes: string[]
       expires_at: number
     }
@@ -65,6 +66,7 @@ export function CliLogin() {
   )
   const [status, setStatus] = useState<'idle' | 'approved' | 'denied'>('idle')
   const [submitting, setSubmitting] = useState(false)
+  const [grant, setGrant] = useState<DeviceGrantResponse['data'] | null>(null)
   const currentOperation = useRef<AbortController | null>(null)
   const verification = useSecureVerification()
   const cancelVerification = verification.cancel
@@ -80,6 +82,36 @@ export function CliLogin() {
     },
     [cancelVerification, user?.id, sessionId, userCode, search.user_code]
   )
+
+  const normalizedUserCode = userCode.replaceAll(/[^A-Za-z0-9]/g, '')
+  useEffect(() => {
+    if (!user || normalizedUserCode.length !== 8 || status !== 'idle') {
+      setGrant(null)
+      return
+    }
+    const controller = new AbortController()
+    void api
+      .post<DeviceGrantResponse>(
+        '/api/user/device/code',
+        { user_code: normalizedUserCode },
+        { skipBusinessError: true, signal: controller.signal }
+      )
+      .then((response) => {
+        const data = response.data
+        if (
+          data.success &&
+          data.data?.verification_scope === 'cli.device.approve'
+        ) {
+          setGrant(data.data)
+          return
+        }
+        setGrant(null)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setGrant(null)
+      })
+    return () => controller.abort()
+  }, [normalizedUserCode, status, user])
 
   const redirectToSignIn = () => {
     const code = userCode.trim()
@@ -111,20 +143,27 @@ export function CliLogin() {
     try {
       let proof = null
       if (action === 'approve') {
-        const grant = await api.post<DeviceGrantResponse>(
-          '/api/user/device/code',
-          { user_code: code },
-          { skipBusinessError: true, signal: controller.signal }
-        )
-        const metadata = grant.data.data
-        if (
-          !grant.data.success ||
-          metadata?.verification_scope !== 'cli.device.approve'
-        ) {
-          toast.error(
-            getServerErrorMessage(grant.data, t('Invalid or expired code'))
+        let metadata =
+          grant?.verification_context.user_code === normalizedUserCode
+            ? grant
+            : null
+        if (!metadata) {
+          const response = await api.post<DeviceGrantResponse>(
+            '/api/user/device/code',
+            { user_code: code },
+            { skipBusinessError: true, signal: controller.signal }
           )
-          return
+          metadata =
+            response.data.success &&
+            response.data.data?.verification_scope === 'cli.device.approve'
+              ? response.data.data
+              : null
+          if (!metadata) {
+            toast.error(
+              getServerErrorMessage(response.data, t('Invalid or expired code'))
+            )
+            return
+          }
         }
         const liveAuth = useAuthStore.getState().auth
         if (
@@ -184,6 +223,10 @@ export function CliLogin() {
     }
   }
 
+  const requestClientName =
+    grant?.verification_context.client_name?.trim() || t('Unknown CLI device')
+  const requestedScopes = grant?.verification_context.scopes ?? []
+
   let statusContent
   if (status === 'approved') {
     statusContent = (
@@ -223,6 +266,34 @@ export function CliLogin() {
             className='text-center font-mono text-2xl tracking-[0.3em]'
           />
         </div>
+
+        {grant ? (
+          <div className='space-y-3 text-sm'>
+            <div className='flex items-start gap-3 rounded-lg border bg-muted/20 p-3'>
+              <div className='mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-[11px] font-semibold text-primary'>
+                CLI
+              </div>
+              <div className='min-w-0'>
+                <p className='truncate font-medium'>{requestClientName}</p>
+                <div className='mt-2 flex flex-wrap gap-1.5'>
+                  {requestedScopes.map((scope) => (
+                    <span
+                      key={scope}
+                      className='rounded-full border bg-background px-2 py-0.5 font-mono text-[11px] text-muted-foreground'
+                    >
+                      {scope}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <p className='text-warning text-xs'>
+              {t(
+                'Only continue if you just started this request in your terminal.'
+              )}
+            </p>
+          </div>
+        ) : null}
 
         <div className='space-y-3 text-sm'>
           <ul className='text-muted-foreground list-disc space-y-2 ps-4'>

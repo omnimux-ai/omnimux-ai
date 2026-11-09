@@ -33,7 +33,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store'
 
 declare module 'axios' {
-  export interface AxiosRequestConfig {
+  export interface AxiosRequestConfig<D = any, P = any> {
     skipBusinessError?: boolean
     skipErrorHandler?: boolean
     disableDuplicate?: boolean
@@ -44,9 +44,10 @@ declare module 'axios' {
   }
 }
 
-export type ApiRequestConfig = AxiosRequestConfig
+export type ApiRequestConfig = AxiosRequestConfig<any, any>
+type ApiGet = <T = any>(url: string, config?: ApiRequestConfig) => Promise<{ data: T }>
 
-export const api = axios.create({
+const axiosClient = axios.create({
   baseURL: '',
   withCredentials: true,
   headers: {
@@ -55,8 +56,12 @@ export const api = axios.create({
   },
 })
 
+export const api = axiosClient as Omit<typeof axiosClient, 'get'> & {
+  get: ApiGet
+}
+
 const inFlightGet = new Map<string, Promise<unknown>>()
-const originalGet = api.get.bind(api)
+const originalGet = axiosClient.get.bind(axiosClient)
 
 api.get = ((url: string, config: ApiRequestConfig = {}) => {
   if (config.disableDuplicate) return originalGet(url, config)
@@ -72,7 +77,7 @@ api.get = ((url: string, config: ApiRequestConfig = {}) => {
   })
   inFlightGet.set(key, request)
   return request
-}) as typeof api.get
+}) as ApiGet
 
 function redirectToSignIn(): void {
   if (

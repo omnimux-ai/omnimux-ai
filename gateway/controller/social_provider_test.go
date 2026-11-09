@@ -158,3 +158,35 @@ func TestSocialProviderHTTPIsolation(t *testing.T) {
 	assert.Equal(t, "active", unchanged.Status)
 	assert.Equal(t, "zernio", unchanged.Provider)
 }
+
+func TestRenderTikTokCallbackPageEscapesDynamicValues(t *testing.T) {
+	page := renderTikTokCallbackPage("<script>alert(1)</script>", `<img src=x onerror=alert(1)>`, "")
+	assert.NotContains(t, page, "<script>alert(1)</script>")
+	assert.Contains(t, page, "&lt;script&gt;alert(1)&lt;/script&gt;")
+}
+
+func TestSocialOAuthBrowserCookieBinding(t *testing.T) {
+	previousSecret := common.SessionSecret
+	common.SessionSecret = "social-oauth-cookie-test"
+	t.Cleanup(func() { common.SessionSecret = previousSecret })
+
+	state := "state-123"
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	setSocialOAuthBrowserCookie(c, state)
+	cookies := recorder.Result().Cookies()
+	require.Len(t, cookies, 1)
+
+	callbackRecorder := httptest.NewRecorder()
+	callbackContext, _ := gin.CreateTestContext(callbackRecorder)
+	callbackContext.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	callbackContext.Request.AddCookie(cookies[0])
+	assert.True(t, socialOAuthBrowserCookieValid(callbackContext, state))
+
+	otherRecorder := httptest.NewRecorder()
+	otherContext, _ := gin.CreateTestContext(otherRecorder)
+	otherContext.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	otherContext.Request.AddCookie(cookies[0])
+	assert.False(t, socialOAuthBrowserCookieValid(otherContext, "state-other"))
+}

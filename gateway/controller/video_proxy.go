@@ -69,8 +69,16 @@ func VideoProxy(c *gin.Context) {
 
 	task, exists, err := getTaskForArtifactRequest(c, taskID)
 	if !exists || task == nil {
-		// Fallback to query by public task ID for unauthenticated media content requests (e.g. browser <img>/<video> tags).
-		task, exists, err = model.GetByOnlyTaskId(taskID)
+		// Only the legacy anonymous image route is a public capability URL. A
+		// request carrying a user or token identity must never fall through to a
+		// lookup that ignores task ownership.
+		publicImageRoute := strings.HasPrefix(c.Request.URL.Path, "/v1/images/") &&
+			c.GetInt("id") == 0 && c.GetInt("token_id") == 0
+		if !publicImageRoute {
+			videoProxyError(c, http.StatusNotFound, "invalid_request_error", "Task not found")
+			return
+		}
+		task, exists, err = model.GetUniqueByOnlyTaskId(taskID)
 	}
 	if err != nil {
 		logger.LogError(c.Request.Context(), common.LogText("Failed to query task %s: %s", taskID, err.Error()))

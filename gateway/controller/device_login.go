@@ -80,10 +80,14 @@ func CreateDeviceLoginCode(c *gin.Context) {
 		return
 	}
 
+	clientName := strings.TrimSpace(req.ClientName)
+	if len([]rune(clientName)) > 128 {
+		clientName = string([]rune(clientName)[:128])
+	}
 	expiresAt := time.Now().Add(time.Duration(deviceLoginExpiresIn) * time.Second)
 	devicePayload, err := common.Marshal(deviceLoginDevicePayload{
 		Interval:   deviceLoginInterval,
-		ClientName: strings.TrimSpace(req.ClientName),
+		ClientName: clientName,
 	})
 	if err != nil {
 		common.ApiError(c, err)
@@ -109,7 +113,7 @@ func CreateDeviceLoginCode(c *gin.Context) {
 	}
 
 	grant := &service.CliDeviceApproveContext{
-		DeviceFlowID: deviceFlow.Id, UserCode: userCode, Scopes: deviceLoginScopes(),
+		DeviceFlowID: deviceFlow.Id, UserCode: userCode, ClientName: clientName, Scopes: deviceLoginScopes(),
 		ExpiresAt: time.Now().Unix() + int64(service.AccessTokenDefaultExpiryDays)*24*60*60,
 	}
 	var pending deviceLoginDevicePayload

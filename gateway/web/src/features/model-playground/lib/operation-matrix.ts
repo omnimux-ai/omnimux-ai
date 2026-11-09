@@ -1,4 +1,3 @@
-import type { ParamControl, PlaygroundOperation } from '../types'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,62 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { isDeclared, resolveDeclared } from './model-id'
+import type { PricingModel } from '@/features/pricing/types'
 
-/**
- * Frontend mirror of the gateway's mode contract.
- *
- * The authoritative table is `operationAllowed` in
- * `relay/channel/task/apimart/video_contract.go` (mode whitelist) together with
- * `validatePhaseOneOperationMedia` (per-mode media rules) and
- * `validatePhaseOneParameters` (per-mode parameter locks). This file repeats it
- * because the catalog payload carries no capability data yet; when a model is
- * absent here the form keeps its flat, modality-derived shape.
- *
- * Only models the apimart contract recognises are listed. A model that is not
- * declared must not gain a mode selector — that keeps this change additive.
- */
-export const OPERATION_MATRIX: Record<string, PlaygroundOperation[]> = {
-  'seedance-2-5': [
-    'text_to_video',
-    'first_frame',
-    'first_last_frame',
-    'video_multi_ref',
-    'video_edit',
-    'video_extend',
-  ],
-  'seedance-2-0': [
-    'text_to_video',
-    'first_frame',
-    'first_last_frame',
-    'video_multi_ref',
-  ],
-  'seedance-2-0-fast': [
-    'text_to_video',
-    'first_frame',
-    'first_last_frame',
-    'video_multi_ref',
-  ],
-  'seedance-2-0-mini': [
-    'text_to_video',
-    'first_frame',
-    'first_last_frame',
-    'video_multi_ref',
-  ],
-  'wan-3.0': [
-    'text_to_video',
-    'first_frame',
-    'first_last_frame',
-    'video_multi_ref',
-  ],
-  'minimax-h3': [
-    'text_to_video',
-    'first_frame',
-    'first_last_frame',
-    'video_multi_ref',
-  ],
-  'grok-imagine-video-1-5': ['text_to_video', 'video_multi_ref'],
-}
+import type { PlaygroundOperation } from '../types'
+import { contractOperations } from './contract-schema'
+import { isDeclared } from './model-id'
 
 /** i18n keys for the mode list; values never reach the wire. */
 export const OPERATION_LABEL_KEYS: Record<PlaygroundOperation, string> = {
@@ -82,139 +30,52 @@ export const OPERATION_LABEL_KEYS: Record<PlaygroundOperation, string> = {
   video_multi_ref: 'Reference to video',
   video_edit: 'Video edit',
   video_extend: 'Video extend',
+  end_frame: 'End frame',
+  document_to_video: 'Document to video',
+  webpage_to_video: 'Webpage to video',
+  digital_human: 'Digital human',
 }
 
 export const DEFAULT_OPERATION: PlaygroundOperation = 'text_to_video'
 
-type CapKind = 'image' | 'video' | 'audio'
+const PLAYGROUND_OPERATIONS: ReadonlySet<string> = new Set(
+  Object.keys(OPERATION_LABEL_KEYS)
+)
 
-/** Documented per-model reference limits (30/10/10 for 2.5, 9/3/3 below it). */
-const MEDIA_CAPS: Record<string, Partial<Record<CapKind, number>>> = {
-  'seedance-2-5': { image: 30, video: 10, audio: 10 },
-  'seedance-2-0': { image: 9, video: 3, audio: 3 },
-  'seedance-2-0-fast': { image: 9, video: 3, audio: 3 },
-  'seedance-2-0-mini': { image: 9, video: 3, audio: 3 },
-  'wan-3.0': { image: 10, video: 5, audio: 5 },
-  'minimax-h3': { image: 9, video: 3, audio: 3 },
-  'kling-v3': { image: 7, video: 1 },
-  // The vendor publishes no image ceiling for Grok 1.5, allows up to 3 audio
-  // preset voices, and rejects video references outright.
-  'grok-imagine-video-1-5': { video: 0, audio: 3 },
-}
-
-const ACCEPT: Record<CapKind, string> = {
-  image: 'image/png,image/jpeg,image/webp',
-  video: 'video/mp4,video/quicktime',
-  audio: 'audio/wav,audio/mpeg',
-}
-
-export type OperationMediaSpec = {
-  key: string
-  labelKey: string
-  mediaRole: NonNullable<ParamControl['mediaRole']>
-  accept: CapKind
-  /** Marks the mode's primary slot; the form blocks submit while it is empty. */
-  required: boolean
-  /** Fixed single slot (a frame, a source clip) rather than a growing list. */
-  single: boolean
-  hintKey?: string
+function isPlaygroundOperation(id: string): id is PlaygroundOperation {
+  return PLAYGROUND_OPERATIONS.has(id)
 }
 
 /**
- * Media slots each mode renders.
+ * Video modes a model exposes through its published contract.
  *
- * Frame modes and reference mode are mutually exclusive upstream
- * ("frame and reference media families are mutually exclusive"), so no mode ever
- * lists both families — that is the whole reason the form is mode-first.
+ * The contract is the only source: an operation the gateway marks
+ * non-executable, produces something other than video, or names outside the
+ * playground's vocabulary never becomes a mode. A model without a contract
+ * keeps the flat, modality-derived form — the same behaviour it had before
+ * contracts existed.
  */
-const OPERATION_MEDIA: Record<PlaygroundOperation, OperationMediaSpec[]> = {
-  text_to_video: [],
-  first_frame: [
-    {
-      key: 'first_frame',
-      labelKey: 'First frame',
-      mediaRole: 'first_frame',
-      accept: 'image',
-      required: true,
-      single: true,
-    },
-  ],
-  first_last_frame: [
-    {
-      key: 'first_frame',
-      labelKey: 'First frame',
-      mediaRole: 'first_frame',
-      accept: 'image',
-      required: true,
-      single: true,
-    },
-    {
-      key: 'last_frame',
-      labelKey: 'Last frame',
-      mediaRole: 'last_frame',
-      accept: 'image',
-      required: true,
-      single: true,
-    },
-  ],
-  video_multi_ref: [
-    {
-      key: 'reference_images',
-      labelKey: 'Reference images',
-      mediaRole: 'reference_image',
-      accept: 'image',
-      required: false,
-      single: false,
-    },
-    {
-      key: 'reference_videos',
-      labelKey: 'Reference videos',
-      mediaRole: 'reference_video',
-      accept: 'video',
-      required: false,
-      single: false,
-    },
-    {
-      key: 'reference_audios',
-      labelKey: 'Reference audio',
-      mediaRole: 'reference_audio',
-      accept: 'audio',
-      required: false,
-      single: false,
-      // The gateway refuses reference audio on its own; it needs a visual
-      // reference beside it.
-      hintKey: 'Needs at least one reference image or video',
-    },
-  ],
-  video_edit: [
-    {
-      key: 'source_videos',
-      labelKey: 'Source video',
-      mediaRole: 'reference_video',
-      accept: 'video',
-      required: true,
-      single: true,
-      hintKey: '4–30 seconds',
-    },
-  ],
-  video_extend: [
-    {
-      key: 'source_videos',
-      labelKey: 'Source video',
-      mediaRole: 'reference_video',
-      accept: 'video',
-      required: true,
-      single: true,
-    },
-  ],
+export function operationsFor(model: PricingModel): PlaygroundOperation[] {
+  const operations: PlaygroundOperation[] = []
+  for (const operation of contractOperations(model.contract)) {
+    if (!operation.executable) continue
+    if (operation.output.type !== 'video') continue
+    if (!isPlaygroundOperation(operation.id)) continue
+    if (operations.includes(operation.id)) continue
+    operations.push(operation.id)
+  }
+  return operations
+}
+
+/** True when the model declares modes and therefore earns a mode selector. */
+export function hasOperations(model: PricingModel): boolean {
+  return operationsFor(model).length > 0
 }
 
 /**
- * Controls a mode pins to a single value.
+ * Controls a mode pins to a single value when no contract operation exists.
  *
- * Editing and extension follow the input video's geometry, and the frame modes
- * follow the first frame's, so an aspect-ratio picker there is a control that
- * cannot do anything.
+ * Legacy fallback only: a contract operation states its own `fixed` parameters.
  */
 const OPERATION_LOCKS: Partial<
   Record<PlaygroundOperation, Record<string, string>>
@@ -234,6 +95,16 @@ const LOCKED_VALUES: Record<string, string> = {
   duration: '-1',
 }
 
+export function operationLocks(
+  operation: PlaygroundOperation
+): Record<string, string> {
+  return OPERATION_LOCKS[operation] ?? {}
+}
+
+export function lockedValue(key: string): string | undefined {
+  return LOCKED_VALUES[key]
+}
+
 /** The vendor field that selects the sub-task inside the reference family. */
 const REFERENCE_TASK_TYPE: Partial<Record<PlaygroundOperation, string>> = {
   video_multi_ref: 'reference',
@@ -251,44 +122,6 @@ const GENERATION_TYPE: Partial<Record<PlaygroundOperation, string>> = {
 /** Models whose request carries the vendor sub-task field. */
 const REFERENCE_TASK_TYPE_MODELS = new Set(['seedance-2-5'])
 const GENERATION_TYPE_MODELS = new Set(['wan-3.0'])
-
-/** Modes a model exposes; empty means "keep the flat form". */
-export function operationsFor(modelId: string): PlaygroundOperation[] {
-  return resolveDeclared(modelId, OPERATION_MATRIX) ?? []
-}
-
-/** True when the model declares modes and therefore earns a mode selector. */
-export function hasOperations(modelId: string): boolean {
-  return operationsFor(modelId).length > 0
-}
-
-export function operationMedia(
-  operation: PlaygroundOperation
-): OperationMediaSpec[] {
-  return OPERATION_MEDIA[operation]
-}
-
-export function operationLocks(
-  operation: PlaygroundOperation
-): Record<string, string> {
-  return OPERATION_LOCKS[operation] ?? {}
-}
-
-export function lockedValue(key: string): string | undefined {
-  return LOCKED_VALUES[key]
-}
-
-/** Upload ceiling for one slot, or undefined when the vendor publishes none. */
-export function mediaCap(
-  modelId: string,
-  kind: 'image' | 'video' | 'audio'
-): number | undefined {
-  return resolveDeclared(modelId, MEDIA_CAPS)?.[kind]
-}
-
-export function mediaAccept(kind: CapKind): string {
-  return ACCEPT[kind]
-}
 
 /**
  * Vendor sub-task fields derived from the chosen mode.

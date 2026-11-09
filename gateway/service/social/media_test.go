@@ -12,6 +12,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestValidatePublicMediaSourceURLRejectsLoopbackAliases(t *testing.T) {
+	for _, rawURL := range []string{
+		"https://2130706433:8443/internal",
+		"https://2852039166/internal",
+		"https://127.1/internal",
+		"https://localhost./internal",
+		"https://127.0.0.1/internal",
+	} {
+		_, err := validatePublicMediaSourceURL(rawURL, false)
+		assert.Error(t, err, rawURL)
+	}
+}
+
 func TestNormalizePresignInput(t *testing.T) {
 	in, err := NormalizePresignInput(map[string]any{
 		"filename":     "clip.mp4",

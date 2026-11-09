@@ -339,6 +339,24 @@ func TestUpdatePasskeyAssertionStateCannotRewriteRegistrationIdentity(t *testing
 	assert.ErrorIs(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt, "example.com"), ErrPasskeyNotFound)
 }
 
+func TestValidateTOTPCodeRejectsReplayInSameStep(t *testing.T) {
+	truncateTables(t)
+	user := User{Username: "totp-replay", Password: "password"}
+	require.NoError(t, DB.Create(&user).Error)
+	factor := TwoFA{UserId: user.Id, Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true}
+	require.NoError(t, DB.Create(&factor).Error)
+
+	code, err := totp.GenerateCode(factor.Secret, time.Now())
+	require.NoError(t, err)
+	valid, err := factor.ValidateTOTPAndUpdateUsage(code)
+	require.NoError(t, err)
+	require.True(t, valid)
+
+	valid, err = factor.ValidateTOTPAndUpdateUsage(code)
+	require.NoError(t, err)
+	assert.False(t, valid, "the same TOTP time-step must not be accepted twice")
+}
+
 func assertUserAuthVersion(t *testing.T, userID int, expected int64) {
 	t.Helper()
 	var version int64

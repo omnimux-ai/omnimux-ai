@@ -112,9 +112,13 @@ type AccessTokenGenerateContext struct {
 }
 
 // CliDeviceApproveContext binds browser approval to one device and its grant.
+// ClientName is the self-declared device label shown to the approver; it is
+// bound into the proof context so a proof for one device cannot be replayed
+// against another.
 type CliDeviceApproveContext struct {
 	DeviceFlowID int64    `json:"device_flow_id"`
 	UserCode     string   `json:"user_code"`
+	ClientName   string   `json:"client_name"`
 	Scopes       []string `json:"scopes"`
 	ExpiresAt    int64    `json:"expires_at"`
 }
@@ -237,9 +241,13 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 		normalized = context
 	case VerificationScopeCliDeviceApprove:
 		var context CliDeviceApproveContext
-		if len(fields) != 4 || common.Unmarshal(operation.Context, &context) != nil ||
+		if (len(fields) != 4 && len(fields) != 5) || common.Unmarshal(operation.Context, &context) != nil ||
 			context.DeviceFlowID <= 0 || context.ExpiresAt <= 0 || len(context.UserCode) != 8 ||
 			strings.Trim(context.UserCode, "BCDFGHJKLMNPQRSTVWXZ23456789") != "" {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		context.ClientName = strings.TrimSpace(context.ClientName)
+		if len([]rune(context.ClientName)) > 128 {
 			return VerificationBinding{}, ErrVerificationContextInvalid
 		}
 		scopes, ok := NormalizeAccessTokenScopeList(context.Scopes)

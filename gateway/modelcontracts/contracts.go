@@ -52,13 +52,41 @@ type MediaLimits struct {
 // "not established", which is information the caller must not replace with a
 // default of its own.
 type Contract struct {
-	ModelID             string            `json:"model_id"`
-	Family              string            `json:"family,omitempty"`
-	Status              string            `json:"status,omitempty"`
-	Basis               string            `json:"basis,omitempty"`
-	ServiceNotes        string            `json:"service_notes,omitempty"`
-	Operations          []string          `json:"operations,omitempty"`
-	InputModalities     []string          `json:"input_modalities,omitempty"`
+	ModelID string `json:"model_id"`
+	// SchemaVersion names the shape of this contract ("2.0"). It is repeated on
+	// every contract so a caller holding one object can parse it without the
+	// enclosing document.
+	SchemaVersion string `json:"schemaVersion"`
+	// ContractVersion is a deterministic 16-hex content hash of this contract,
+	// computed with the field itself excluded. Any projected change moves it.
+	ContractVersion string `json:"contractVersion,omitempty"`
+	Family          string `json:"family,omitempty"`
+	Status          string `json:"status,omitempty"`
+	Basis           string `json:"basis,omitempty"`
+	ServiceNotes    string `json:"service_notes,omitempty"`
+	// OperationIDs is the v1 compatibility view: the same operation ids, as
+	// strings, for clients that cannot read the object array below.
+	OperationIDs    []string    `json:"operation_ids,omitempty"`
+	Operations      []Operation `json:"operations,omitempty"`
+	Unknowns        []string    `json:"unknowns,omitempty"`
+	InputModalities []string    `json:"input_modalities,omitempty"`
+
+	ToolCalling      *bool      `json:"tool_calling,omitempty"`
+	Streaming        *bool      `json:"streaming,omitempty"`
+	PromptCaching    *bool      `json:"prompt_caching,omitempty"`
+	AudioKind        string     `json:"audio_kind,omitempty"`
+	InputFormats     []string   `json:"input_formats,omitempty"`
+	MaxInputBytes    *int64     `json:"max_input_bytes,omitempty"`
+	MaxInputSeconds  *int       `json:"max_input_seconds,omitempty"`
+	MaxOutputSeconds *int       `json:"max_output_seconds,omitempty"`
+	Voices           *int       `json:"voices,omitempty"`
+	Languages        []string   `json:"languages,omitempty"`
+	Endpoints        []Endpoint `json:"endpoints,omitempty"`
+	Auth             string     `json:"auth,omitempty"`
+	RateLimit        any        `json:"rate_limit,omitempty"`
+	Pagination       string     `json:"pagination,omitempty"`
+	ResponseFields   []string   `json:"response_fields,omitempty"`
+
 	DurationsSeconds    *DurationEnvelope `json:"durations_seconds,omitempty"`
 	Resolutions         []string          `json:"resolutions,omitempty"`
 	AspectRatios        []string          `json:"aspect_ratios,omitempty"`
@@ -100,10 +128,18 @@ type Billing struct {
 	Notes        map[string]string `json:"notes,omitempty"`
 }
 
+// Endpoint is one published callable route of a data-family contract.
+type Endpoint struct {
+	Name   string `json:"name,omitempty"`
+	Method string `json:"method,omitempty"`
+	Path   string `json:"path,omitempty"`
+}
+
 // Document is the whole shipped payload.
 type Document struct {
-	Version string              `json:"version"`
-	Models  map[string]Contract `json:"models"`
+	SchemaVersion string              `json:"schemaVersion"`
+	Version       string              `json:"version"`
+	Models        map[string]Contract `json:"models"`
 }
 
 // specFile mirrors the subset of the governance spec schema this package
@@ -117,7 +153,24 @@ type specFile struct {
 	Basis               string            `json:"basis,omitempty"`
 	ServiceNotes        string            `json:"service_notes,omitempty"`
 	Operations          []string          `json:"operations"`
+	Gateway             *GatewaySpec      `json:"gateway"`
+	Parameters          []ParameterSpec   `json:"parameters"`
 	InputModalities     []string          `json:"input_modalities"`
+	ToolCalling         *bool             `json:"tool_calling"`
+	Streaming           *bool             `json:"streaming"`
+	PromptCaching       *bool             `json:"prompt_caching"`
+	AudioKind           string            `json:"audio_kind"`
+	InputFormats        []string          `json:"input_formats"`
+	MaxInputBytes       *int64            `json:"max_input_bytes"`
+	MaxInputSeconds     *int              `json:"max_input_seconds"`
+	MaxOutputSeconds    *int              `json:"max_output_seconds"`
+	Voices              any               `json:"voices"`
+	Languages           any               `json:"languages"`
+	Endpoints           []Endpoint        `json:"endpoints"`
+	Auth                string            `json:"auth"`
+	RateLimit           any               `json:"rate_limit"`
+	Pagination          string            `json:"pagination"`
+	ResponseFields      []string          `json:"response_fields"`
 	DurationsSeconds    *DurationEnvelope `json:"durations_seconds"`
 	Resolutions         []string          `json:"resolutions"`
 	AspectRatios        []string          `json:"aspect_ratios"`
@@ -175,7 +228,7 @@ func Build(specDir string) (*Document, error) {
 		return nil, err
 	}
 
-	doc := &Document{Models: make(map[string]Contract)}
+	doc := &Document{SchemaVersion: SchemaVersion, Models: make(map[string]Contract)}
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -191,39 +244,232 @@ func Build(specDir string) (*Document, error) {
 		if spec.ModelID == "" {
 			return nil, &SpecError{File: entry.Name(), Err: errNoModelID}
 		}
-		doc.Models[spec.ModelID] = Contract{
-			ModelID:             spec.ModelID,
-			Family:              spec.Family,
-			Status:              spec.Status,
-			Basis:               spec.Basis,
-			ServiceNotes:        spec.ServiceNotes,
-			Operations:          canonical(spec.Operations),
-			InputModalities:     canonical(spec.InputModalities),
-			DurationsSeconds:    spec.DurationsSeconds,
-			Resolutions:         canonical(spec.Resolutions),
-			AspectRatios:        canonical(spec.AspectRatios),
-			AudioSupported:      spec.AudioSupported,
-			OutputFormats:       canonical(spec.OutputFormats),
-			OutputSizes:         canonical(spec.OutputSizes),
-			ReferenceImages:     normalizeMedia(spec.ReferenceImages),
-			ReferenceVideos:     normalizeMedia(spec.ReferenceVideos),
-			ReferenceAudios:     normalizeMedia(spec.ReferenceAudios),
-			PromptMaxChars:      spec.PromptMaxChars,
-			PromptMaxUTF8Bytes:  spec.PromptMaxUTF8Bytes,
-			PromptMaxTokens:     spec.PromptMaxTokens,
-			ContextWindowTokens: spec.ContextWindowTokens,
-			MaxOutputTokens:     spec.MaxOutputTokens,
-			Billing:             spec.Billing,
+		contract, err := projectContract(spec)
+		if err != nil {
+			return nil, &SpecError{File: entry.Name(), Err: err}
 		}
+		doc.Models[spec.ModelID] = contract
 	}
 	doc.Version = Version(doc)
 	return doc, nil
 }
 
+// projectContract assembles one contract, including its operation subtree and
+// per-model content hash. It does not know which file it came from; Build adds
+// that context to any error.
+func projectContract(spec specFile) (Contract, error) {
+	operations, operationUnknowns, err := projectOperations(spec)
+	if err != nil {
+		return Contract{}, err
+	}
+	contract := Contract{
+		ModelID:             spec.ModelID,
+		SchemaVersion:       SchemaVersion,
+		Family:              spec.Family,
+		Status:              spec.Status,
+		Basis:               spec.Basis,
+		ServiceNotes:        spec.ServiceNotes,
+		OperationIDs:        operationIDs(operations),
+		Operations:          operations,
+		Unknowns:            mergeUnknowns(modelUnknowns(spec), operationUnknowns),
+		InputModalities:     canonical(spec.InputModalities),
+		ToolCalling:         spec.ToolCalling,
+		Streaming:           spec.Streaming,
+		PromptCaching:       spec.PromptCaching,
+		AudioKind:           spec.AudioKind,
+		InputFormats:        canonical(spec.InputFormats),
+		MaxInputBytes:       spec.MaxInputBytes,
+		MaxInputSeconds:     spec.MaxInputSeconds,
+		MaxOutputSeconds:    spec.MaxOutputSeconds,
+		Voices:              numericVoices(spec.Voices),
+		Languages:           stringLanguages(spec.Languages),
+		Endpoints:           canonical(spec.Endpoints),
+		Auth:                spec.Auth,
+		RateLimit:           spec.RateLimit,
+		Pagination:          spec.Pagination,
+		ResponseFields:      canonical(spec.ResponseFields),
+		DurationsSeconds:    spec.DurationsSeconds,
+		Resolutions:         canonical(spec.Resolutions),
+		AspectRatios:        canonical(spec.AspectRatios),
+		AudioSupported:      spec.AudioSupported,
+		OutputFormats:       canonical(spec.OutputFormats),
+		OutputSizes:         canonical(spec.OutputSizes),
+		ReferenceImages:     normalizeMedia(spec.ReferenceImages),
+		ReferenceVideos:     normalizeMedia(spec.ReferenceVideos),
+		ReferenceAudios:     normalizeMedia(spec.ReferenceAudios),
+		PromptMaxChars:      spec.PromptMaxChars,
+		PromptMaxUTF8Bytes:  spec.PromptMaxUTF8Bytes,
+		PromptMaxTokens:     spec.PromptMaxTokens,
+		ContextWindowTokens: spec.ContextWindowTokens,
+		MaxOutputTokens:     spec.MaxOutputTokens,
+		Billing:             spec.Billing,
+	}
+	version, err := contractVersion(contract)
+	if err != nil {
+		return Contract{}, err
+	}
+	contract.ContractVersion = version
+	return contract, nil
+}
+
+// unknownList keeps generated unknown paths ordered and duplicate-free.
+type unknownList struct {
+	paths []string
+	seen  map[string]bool
+}
+
+func newUnknownList() *unknownList {
+	return &unknownList{seen: map[string]bool{}}
+}
+
+func (list *unknownList) add(path string) {
+	if path == "" || list.seen[path] {
+		return
+	}
+	list.seen[path] = true
+	list.paths = append(list.paths, path)
+}
+
+// mergeUnknowns concatenates generated path groups in a stable order.
+func mergeUnknowns(groups ...[]string) []string {
+	list := newUnknownList()
+	for _, group := range groups {
+		for _, path := range group {
+			list.add(path)
+		}
+	}
+	return list.paths
+}
+
+// modelUnknowns builds the dot-separated field paths for family-required axes
+// the spec does not establish. Governance prose in spec.unknowns is authoring
+// material and is deliberately never copied here.
+func modelUnknowns(spec specFile) []string {
+	list := newUnknownList()
+	if spec.PromptMaxChars == nil {
+		switch spec.Family {
+		case "image", "video", "llm":
+			list.add("prompt_max_chars")
+		case "audio":
+			// Speech-to-text consumes media, not a prompt.
+			if spec.AudioKind != "asr" {
+				list.add("prompt_max_chars")
+			}
+		}
+	}
+	switch spec.Family {
+	case "video":
+		if spec.DurationsSeconds == nil {
+			list.add("durations_seconds")
+			list.add("durations_seconds.min")
+			list.add("durations_seconds.max")
+		} else {
+			if spec.DurationsSeconds.Min == nil {
+				list.add("durations_seconds.min")
+			}
+			if spec.DurationsSeconds.Max == nil {
+				list.add("durations_seconds.max")
+			}
+		}
+		if len(spec.Resolutions) == 0 {
+			list.add("resolutions")
+		}
+		if len(spec.AspectRatios) == 0 {
+			list.add("aspect_ratios")
+		}
+		addMediaUnknowns(list, spec.ReferenceImages, "reference_images")
+		addMediaUnknowns(list, spec.ReferenceVideos, "reference_videos")
+		addMediaUnknowns(list, spec.ReferenceAudios, "reference_audios")
+	case "image":
+		if spec.ReferenceImages == nil {
+			list.add("reference_images")
+			list.add("reference_images.max")
+			list.add("reference_images.max_bytes_each")
+		} else {
+			if spec.ReferenceImages.Max == nil {
+				list.add("reference_images.max")
+			}
+			if spec.ReferenceImages.MaxBytesEach == nil {
+				list.add("reference_images.max_bytes_each")
+			}
+		}
+		if len(spec.OutputSizes) == 0 {
+			list.add("output_sizes")
+		}
+		if len(spec.OutputFormats) == 0 {
+			list.add("output_formats")
+		}
+	case "audio":
+		if spec.AudioKind == "" {
+			list.add("audio_kind")
+		}
+		if len(spec.OutputFormats) == 0 {
+			list.add("output_formats")
+		}
+		if spec.MaxInputBytes == nil {
+			list.add("max_input_bytes")
+		}
+		if spec.MaxInputSeconds == nil {
+			list.add("max_input_seconds")
+		}
+	case "llm":
+		if spec.ContextWindowTokens == nil {
+			list.add("context_window_tokens")
+		}
+		if len(spec.InputModalities) == 0 {
+			list.add("input_modalities")
+		}
+		if spec.MaxOutputTokens == nil {
+			list.add("max_output_tokens")
+		}
+	case "data":
+		if len(spec.Endpoints) == 0 {
+			list.add("endpoints")
+		}
+		if spec.Auth == "" {
+			list.add("auth")
+		}
+	}
+	return list.paths
+}
+
+// addMediaUnknowns records missing per-family limits. A family that explicitly
+// caps at zero is not a gap: the family is intentionally not accepted.
+func addMediaUnknowns(list *unknownList, limits *MediaLimits, path string) {
+	if limits == nil || (limits.Max != nil && *limits.Max == 0) {
+		return
+	}
+	if limits.Max == nil {
+		list.add(path + ".max")
+	}
+	if limits.MaxBytesEach == nil {
+		list.add(path + ".max_bytes_each")
+	}
+}
+
+// contractVersion hashes the contract with its own version field excluded, so
+// the hash is stable and cannot depend on itself.
+func contractVersion(contract Contract) (string, error) {
+	contract.ContractVersion = ""
+	body, err := common.Marshal(contract)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(body)
+	return hex.EncodeToString(sum[:])[:16], nil
+}
+
 // Version derives the payload version from its own contents, so any change to a
 // projected contract changes the version and a reviewer can tell at a glance
 // whether the committed payload moved.
+//
+// A document that already carries a version returns it unchanged: Build and
+// All have already computed it, and callers asking for the version of a loaded
+// document should not pay to re-hash every contract.
 func Version(doc *Document) string {
+	if doc.Version != "" {
+		return doc.Version
+	}
 	ids := make([]string, 0, len(doc.Models))
 	for id := range doc.Models {
 		ids = append(ids, id)
@@ -231,6 +477,8 @@ func Version(doc *Document) string {
 	sort.Strings(ids)
 
 	digest := sha256.New()
+	digest.Write([]byte(doc.SchemaVersion))
+	digest.Write([]byte{0})
 	for _, id := range ids {
 		body, err := common.Marshal(doc.Models[id])
 		if err != nil {
@@ -242,6 +490,46 @@ func Version(doc *Document) string {
 		digest.Write([]byte{0})
 	}
 	return hex.EncodeToString(digest.Sum(nil))[:16]
+}
+
+// numericVoices publishes a voice count only when the spec states a number.
+// Some specs describe voices in prose; that description is not a count and is
+// deliberately not published as one.
+func numericVoices(value any) *int {
+	switch typed := value.(type) {
+	case float64:
+		if typed != float64(int64(typed)) {
+			return nil
+		}
+		count := int(typed)
+		return &count
+	case int:
+		count := typed
+		return &count
+	default:
+		return nil
+	}
+}
+
+// stringLanguages publishes a language list only when every entry is a string.
+// A prose description or a numeric code is not a language list.
+func stringLanguages(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return canonical(typed)
+	case []any:
+		languages := make([]string, 0, len(typed))
+		for _, entry := range typed {
+			language, ok := entry.(string)
+			if !ok {
+				return nil
+			}
+			languages = append(languages, language)
+		}
+		return canonical(languages)
+	default:
+		return nil
+	}
 }
 
 var (

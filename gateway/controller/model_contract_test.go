@@ -37,6 +37,20 @@ func TestModelContractEndpointPublishesADeclaredContract(t *testing.T) {
 	if !strings.Contains(body, `"durations_seconds"`) {
 		t.Errorf("response omits the declared duration envelope: %s", body)
 	}
+	// v2: a client must be able to tell the schema apart and cache one model
+	// without re-reading the whole payload.
+	if !strings.Contains(body, `"schemaVersion":"2.0"`) {
+		t.Errorf("response carries no schemaVersion: %s", body)
+	}
+	if !strings.Contains(body, `"contractVersion":"`) {
+		t.Errorf("response carries no per-model contractVersion: %s", body)
+	}
+	if !strings.Contains(body, `"operations":[`) {
+		t.Errorf("response carries no operation schema: %s", body)
+	}
+	if !strings.Contains(body, `"output":{"type":"video"}`) {
+		t.Errorf("operation schema carries no output type: %s", body)
+	}
 }
 
 func TestModelContractEndpointReportsAbsenceForAnUndescribedModel(t *testing.T) {

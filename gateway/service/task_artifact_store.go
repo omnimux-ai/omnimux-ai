@@ -57,6 +57,25 @@ const TaskArtifactObjectPrefix = "task-artifacts"
 
 var taskArtifactObjectKeyPartPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,191}$`)
 
+// safeTaskArtifactMimeType returns the only MIME types that may be rendered
+// inline from the application origin. Everything else is served as an opaque
+// attachment so an upstream/plugin-declared text/html or image/svg+xml payload
+// can never become same-origin executable content.
+func safeTaskArtifactMimeType(raw string) (mimeType string, inline bool) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if i := strings.IndexByte(value, ';'); i >= 0 {
+		value = strings.TrimSpace(value[:i])
+	}
+	switch value {
+	case "image/gif", "image/jpeg", "image/png", "image/webp", "image/avif",
+		"video/mp4", "video/quicktime", "video/webm",
+		"audio/aac", "audio/mp4", "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm":
+		return value, true
+	default:
+		return "application/octet-stream", false
+	}
+}
+
 func taskArtifactObjectKey(task *model.Task, artifactKey string) string {
 	if task == nil {
 		return ""
@@ -117,9 +136,12 @@ func (storageArtifactStore) Persist(ctx context.Context, task *model.Task, artif
 	if int64(len(data)) > MaxTaskArtifactPersistBytes {
 		return nil, errTaskArtifactTooLarge
 	}
-	mimeType := strings.TrimSpace(artifact.MimeType)
-	if mimeType == "" {
-		mimeType = http.DetectContentType(data)
+	mimeType, inline := safeTaskArtifactMimeType(artifact.MimeType)
+	if !inline {
+		detected, detectedInline := safeTaskArtifactMimeType(http.DetectContentType(data))
+		if detectedInline {
+			mimeType = detected
+		}
 	}
 	objectKey := taskArtifactObjectKey(task, artifact.Key)
 	if _, err := storage.GetStorageDriver().Upload(ctx, objectKey, data, mimeType); err != nil {
@@ -149,7 +171,7 @@ func (storageArtifactStore) Serve(c *gin.Context, task *model.Task, ref *StoredA
 	driver := storage.GetStorageDriver()
 	if c.Request.Method == http.MethodGet && c.Query("delivery") == "direct" && driver.IsR2() {
 		if signer, ok := driver.(storage.DownloadPresigner); ok {
-			contentType := ref.MimeType
+			contentType, inline := safeTaskArtifactMimeType(ref.MimeType)
 			extension := ""
 			switch contentType {
 			case "image/png":
@@ -163,7 +185,7 @@ func (storageArtifactStore) Serve(c *gin.Context, task *model.Task, ref *StoredA
 			case "video/quicktime":
 				extension = ".mov"
 			}
-			if extension != "" && task != nil {
+			if inline && extension != "" && task != nil {
 				disposition := "inline"
 				if c.Query("download") == "1" {
 					disposition = fmt.Sprintf("attachment; filename=%q", task.TaskID+extension)
@@ -182,20 +204,28 @@ func (storageArtifactStore) Serve(c *gin.Context, task *model.Task, ref *StoredA
 			}
 		}
 	}
-	reader, mimeType, size, err := driver.Get(c.Request.Context(), ref.ObjectKey)
+	reader, storedMimeType, size, err := driver.Get(c.Request.Context(), ref.ObjectKey)
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
-	if ref.MimeType != "" {
-		mimeType = ref.MimeType
+	rawMimeType := ref.MimeType
+	if strings.TrimSpace(rawMimeType) == "" {
+		rawMimeType = storedMimeType
 	}
-	if mimeType == "" {
-		mimeType = "application/octet-stream"
-	}
+	mimeType, inline := safeTaskArtifactMimeType(rawMimeType)
 	c.Header("Cache-Control", "private, max-age=31536000, immutable")
+	c.Header("Content-Security-Policy", "sandbox; default-src 'none'")
+	c.Header("Referrer-Policy", "no-referrer")
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Accept-Ranges", "bytes")
+	if !inline {
+		filename := "artifact"
+		if task != nil && task.TaskID != "" {
+			filename = task.TaskID
+		}
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	}
 	// Persisted videos are replayed by a media element, which seeks: honouring
 	// a single range keeps seeking off the full-download path without buffering
 	// the object in memory.

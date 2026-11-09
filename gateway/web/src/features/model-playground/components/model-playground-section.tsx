@@ -32,6 +32,7 @@ import { getServerErrorMessage } from '@/lib/server-error-message'
 
 import { useGeneration } from '../hooks/use-generation'
 import { usePlaygroundHistory } from '../hooks/use-playground-history'
+import { operationInputs } from '../lib/contract-schema'
 import {
   intentSuffix,
   needsIntentHint,
@@ -39,12 +40,11 @@ import {
 } from '../lib/intent-precheck'
 import {
   acceptTypes,
-  referenceLimitsFrom,
   screenMediaSelection,
   validateOperationMedia,
   type MediaSelectionIssue,
 } from '../lib/media-validation'
-import { operationMedia, operationsFor } from '../lib/operation-matrix'
+import { operationsFor } from '../lib/operation-matrix'
 import {
   buildOperationSchema,
   buildParamSchema,
@@ -121,7 +121,7 @@ export function ModelPlaygroundSection(props: ModelPlaygroundSectionProps) {
   const { t } = useTranslation()
   const transport = getGenerationTransport()
   const modelId = props.model.model_name
-  const operations = useMemo(() => operationsFor(modelId), [modelId])
+  const operations = useMemo(() => operationsFor(props.model), [props.model])
 
   const [operation, setOperation] = useState<PlaygroundOperation | undefined>(
     () => operations[0]
@@ -343,13 +343,13 @@ export function ModelPlaygroundSection(props: ModelPlaygroundSectionProps) {
     generation.reset()
   }, [generation, schema])
 
-  // The model's declared reference limits, checked here so an over-full set is
+  // The model's declared inputs, checked here so a missing or over-full set is
   // refused by the form instead of by the gateway after submission.
   const mediaIssue = operation
     ? validateOperationMedia(
-        operation,
+        operationInputs(props.model.contract, operation),
         params,
-        referenceLimitsFrom(props.model.contract)
+        operation
       )
     : null
 
@@ -460,13 +460,13 @@ export function ModelPlaygroundSection(props: ModelPlaygroundSectionProps) {
     if (mediaIssue.code === 'audio_alone') {
       return t('Reference audio needs at least one reference image or video.')
     }
-    const spec = operationMedia(operation as PlaygroundOperation).find(
+    const control = schema.controls.find(
       (item) => item.key === mediaIssue.slotKey
     )
     return t('Add the required input: {{slot}}', {
-      slot: t(spec?.labelKey ?? 'Input'),
+      slot: t(control?.labelKey ?? 'Input'),
     })
-  }, [mediaIssue, operation, t])
+  }, [mediaIssue, schema, t])
 
   return (
     <section id='playground' className='scroll-mt-[176px] space-y-6'>

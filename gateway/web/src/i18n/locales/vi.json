@@ -899,6 +899,8 @@
     "Authorize CLI": "Ủy quyền CLI",
     "Authorize OmniMux CLI": "Ủy quyền OmniMux CLI",
     "Authorize this device to use OmniMux CLI for 30 days. This replaces only your previous CLI device token; other access tokens stay active.": "Cho phép thiết bị này sử dụng OmniMux CLI trong 30 ngày. Chỉ mã truy cập thiết bị CLI trước đó của bạn được thay thế; các mã truy cập khác vẫn còn hiệu lực.",
+    "Unknown CLI device": "Thiết bị CLI không xác định",
+    "Only continue if you just started this request in your terminal.": "Chỉ tiếp tục nếu bạn vừa bắt đầu yêu cầu này trong terminal.",
     "Auto": "Tự động",
     "Auto (Circuit Breaker)": "Tự động (Bộ ngắt mạch)",
     "Auto assignment order": "Thứ tự gán tự động",
@@ -9426,6 +9428,14 @@
     "Top up successful": "Nạp tiền thành công",
     "Top up to continue this generation": "Nạp tiền để tiếp tục lần tạo này",
     "Top up": "Nạp tiền",
-    "Your credits are ready — generation resumes automatically.": "Tín dụng đã sẵn sàng — quá trình tạo sẽ tự động tiếp tục."
+    "Your credits are ready — generation resumes automatically.": "Tín dụng đã sẵn sàng — quá trình tạo sẽ tự động tiếp tục.",
+    "Locked by the service contract": "Được khóa bởi hợp đồng dịch vụ",
+    "Document": "Tài liệu",
+    "Webpage URL": "URL trang web",
+    "End frame": "Khung cuối",
+    "Document to video": "Tài liệu sang video",
+    "Webpage to video": "Trang web sang video",
+    "Digital human": "Người kỹ thuật số",
+    "Enter a URL": "Nhập URL"
   }
 }

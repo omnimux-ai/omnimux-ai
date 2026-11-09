@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,21 +27,65 @@ type tiktokMediaPullTokenPayload struct {
 	ExpiresAt int64  `json:"e"`
 }
 
-func isLoopbackOrPrivateLiteralIP(host string) bool {
-	ip := net.ParseIP(strings.TrimSpace(host))
+func isLoopbackOrPrivateIP(ip net.IP) bool {
 	if ip == nil {
 		return false
 	}
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
 }
 
+func isLoopbackOrPrivateLiteralIP(host string) bool {
+	return isLoopbackOrPrivateIP(net.ParseIP(strings.TrimSpace(host)))
+}
+
+// legacyIPv4Host handles non-canonical inet_aton forms (127.1, 2130706433)
+// without depending on the host resolver; Go's LookupIP behavior for these
+// aliases varies by platform.
+func legacyIPv4Host(host string) net.IP {
+	if host == "" {
+		return nil
+	}
+	if strings.Trim(host, "0123456789") == "" {
+		value, err := strconv.ParseUint(host, 10, 32)
+		if err != nil {
+			return nil
+		}
+		return net.IPv4(byte(value>>24), byte(value>>16), byte(value>>8), byte(value))
+	}
+	parts := strings.Split(host, ".")
+	if len(parts) < 2 || len(parts) > 4 {
+		return nil
+	}
+	values := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		if part == "" || strings.Trim(part, "0123456789") != "" {
+			return nil
+		}
+		value, err := strconv.ParseInt(part, 10, 32)
+		if err != nil || value < 0 || value > 255 {
+			return nil
+		}
+		values = append(values, value)
+	}
+	switch len(values) {
+	case 2:
+		return net.IPv4(byte(values[0]), 0, 0, byte(values[1]))
+	case 3:
+		return net.IPv4(byte(values[0]), byte(values[1]), 0, byte(values[2]))
+	case 4:
+		return net.IPv4(byte(values[0]), byte(values[1]), byte(values[2]), byte(values[3]))
+	default:
+		return nil
+	}
+}
+
 func validatePublicMediaSourceURL(rawURL string, allowLoopbackForTest bool) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil || u == nil || u.Host == "" {
+	if err != nil || u == nil || u.Host == "" || u.User != nil || u.Fragment != "" {
 		return nil, fmt.Errorf("%w: invalid media url", ErrMediaInvalid)
 	}
 	scheme := strings.ToLower(u.Scheme)
-	hostOnly := strings.ToLower(u.Hostname())
+	hostOnly := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 	if hostOnly == "" {
 		return nil, fmt.Errorf("%w: invalid media host", ErrMediaInvalid)
 	}
@@ -53,9 +98,18 @@ func validatePublicMediaSourceURL(rawURL string, allowLoopbackForTest bool) (*ur
 	if scheme != "https" {
 		return nil, fmt.Errorf("%w: media url must use https", ErrMediaInvalid)
 	}
-	if hostOnly == "localhost" || strings.HasSuffix(hostOnly, ".local") || strings.HasSuffix(hostOnly, ".internal") || isLoopbackOrPrivateLiteralIP(hostOnly) {
+	if hostOnly == "localhost" || strings.HasSuffix(hostOnly, ".local") || strings.HasSuffix(hostOnly, ".internal") || isLoopbackOrPrivateLiteralIP(hostOnly) || isLoopbackOrPrivateIP(legacyIPv4Host(hostOnly)) {
 		if !allowLoopbackForTest {
 			return nil, fmt.Errorf("%w: media host is not allowed", ErrMediaInvalid)
+		}
+	}
+	if !allowLoopbackForTest {
+		if ips, err := net.DefaultResolver.LookupIPAddr(context.Background(), hostOnly); err == nil {
+			for _, address := range ips {
+				if isLoopbackOrPrivateIP(address.IP) {
+					return nil, fmt.Errorf("%w: media host is not allowed", ErrMediaInvalid)
+				}
+			}
 		}
 	}
 	return u, nil

@@ -103,12 +103,17 @@ describe('buildParamSchema', () => {
     )
   })
 
-  test('derives video duration options from the declared tier bounds', () => {
+  test('derives video duration options from the declared contract envelope', () => {
     const schema = buildParamSchema(
       model({
         model_name: 'seedance-2-5',
         tags: 'Video Generation',
         billing_usage_schema: durationSchema,
+        contract: {
+          model_id: 'seedance-2-5',
+          family: 'video',
+          durations_seconds: { min: 4, max: 30 },
+        },
       })
     )
     const duration = schema.controls.find((c) => c.key === 'duration')
@@ -540,5 +545,122 @@ describe('the prompt control carries the declared length limit', () => {
         withContract({ model_id: 'm', family: 'video', prompt_max_chars: 0 })
       )?.maxChars
     ).toBeUndefined()
+  })
+})
+
+describe('the flat image form renders contract parameters', () => {
+  const contracted = () =>
+    model({
+      model_name: 'gpt-image-2.5',
+      tags: 'Image Generation',
+      input_modalities: ['text', 'image'],
+      output_modalities: ['image'],
+      contract: {
+        model_id: 'gpt-image-2.5',
+        family: 'image',
+        reference_images: { min: 0, max: 1 },
+        operations: [
+          {
+            id: 'text_to_image',
+            executable: true,
+            inputs: [{ slot: 'prompt', type: 'text', required: true }],
+            parameters: [
+              {
+                name: 'seed',
+                type: 'integer',
+                minimum: 0,
+                maximum: 2147483647,
+                default: 0,
+              },
+              {
+                name: 'n',
+                type: 'integer',
+                minimum: 1,
+                maximum: 1,
+                default: 1,
+                fixed: 1,
+              },
+              {
+                name: 'quality',
+                type: 'enum',
+                enum: ['medium'],
+                default: 'medium',
+                fixed: 'medium',
+              },
+              {
+                name: 'background',
+                type: 'enum',
+                enum: ['opaque', 'transparent'],
+                default: 'opaque',
+              },
+              {
+                name: 'aspect_ratio',
+                type: 'enum',
+                enum: ['auto', '1:1', '16:9'],
+                default: '1:1',
+              },
+            ],
+            output: {
+              type: 'image',
+              sizes: ['1024x1024', '1536x1024'],
+            },
+          },
+        ],
+      },
+    })
+
+  test('renders only controls the contract declares', () => {
+    const keys = buildParamSchema(contracted()).controls.map(
+      (control) => control.key
+    )
+
+    expect(keys).toEqual([
+      'prompt',
+      'reference_media',
+      'size_mode',
+      'seed',
+      'n',
+      'quality',
+      'background',
+      'aspect_ratio',
+      'resolution',
+    ])
+  })
+
+  test('locks a fixed integer and a fixed enum to one value', () => {
+    const schema = buildParamSchema(contracted())
+    const count = schema.controls.find((control) => control.key === 'n')
+    const quality = schema.controls.find((control) => control.key === 'quality')
+
+    expect(count?.defaultValue).toBe('1')
+    expect(count?.lockedReasonKey).toBe('Locked by the service contract')
+    expect(quality?.defaultValue).toBe('medium')
+    expect(quality?.lockedReasonKey).toBe('Locked by the service contract')
+  })
+
+  test('uses the contract bounds and defaults for free parameters', () => {
+    const schema = buildParamSchema(contracted())
+    const seed = schema.controls.find((control) => control.key === 'seed')
+    const ratio = schema.controls.find(
+      (control) => control.key === 'aspect_ratio'
+    )
+
+    expect(seed?.kind).toBe('slider')
+    expect(seed?.min).toBe(0)
+    expect(seed?.max).toBe(2147483647)
+    expect(seed?.defaultValue).toBe(0)
+    expect(ratio?.defaultValue).toBe('1:1')
+  })
+
+  test('renders the declared output sizes as the resolution choices', () => {
+    const schema = buildParamSchema(contracted())
+    const resolution = schema.controls.find(
+      (control) => control.key === 'resolution'
+    )
+
+    expect(resolution?.options?.map((option) => option.value)).toEqual([
+      '1024x1024',
+      '1536x1024',
+    ])
   })
 })

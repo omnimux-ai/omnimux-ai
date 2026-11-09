@@ -899,6 +899,8 @@
     "Authorize CLI": "Авторизовать CLI",
     "Authorize OmniMux CLI": "Авторизация OmniMux CLI",
     "Authorize this device to use OmniMux CLI for 30 days. This replaces only your previous CLI device token; other access tokens stay active.": "Разрешить этому устройству использовать OmniMux CLI в течение 30 дней. Будет заменён только ваш предыдущий токен устройства CLI; остальные токены доступа останутся активными.",
+    "Unknown CLI device": "Неизвестное устройство CLI",
+    "Only continue if you just started this request in your terminal.": "Продолжайте только если вы только что запустили этот запрос в терминале.",
     "Auto": "Авто",
     "Auto (Circuit Breaker)": "Авто (Автовыключатель)",
     "Auto assignment order": "Порядок автоматического назначения",
@@ -9426,6 +9428,14 @@
     "Top up successful": "Пополнение выполнено",
     "Top up to continue this generation": "Пополните баланс, чтобы продолжить эту генерацию",
     "Top up": "Пополнить",
-    "Your credits are ready — generation resumes automatically.": "Кредиты зачислены — генерация продолжится автоматически."
+    "Your credits are ready — generation resumes automatically.": "Кредиты зачислены — генерация продолжится автоматически.",
+    "Locked by the service contract": "Заблокировано контрактом сервиса",
+    "Document": "Документ",
+    "Webpage URL": "URL веб-страницы",
+    "End frame": "Последний кадр",
+    "Document to video": "Документ в видео",
+    "Webpage to video": "Веб-страница в видео",
+    "Digital human": "Цифровой человек",
+    "Enter a URL": "Введите URL"
   }
 }

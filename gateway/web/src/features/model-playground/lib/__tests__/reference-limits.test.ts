@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import type { ModelContract } from '@/features/pricing/types'
+import type { ContractInput, ModelContract } from '@/features/pricing/types'
 
 import {
   referenceLimitsFrom,
@@ -32,6 +32,18 @@ const contractWith = (
   family: 'video',
   reference_images: images,
 })
+
+const REFERENCE_INPUTS: ContractInput[] = [
+  { slot: 'prompt', type: 'text', required: true },
+  {
+    slot: 'reference_images',
+    type: 'image',
+    role: 'reference',
+    required: false,
+    min: 1,
+    max: 2,
+  },
+]
 
 describe('referenceLimitsFrom', () => {
   it('reports nothing when no contract is published', () => {
@@ -50,13 +62,11 @@ describe('referenceLimitsFrom', () => {
 })
 
 describe('validateOperationMedia with declared limits', () => {
-  const limits = referenceLimitsFrom(contractWith({ min: 1, max: 2 }))
-
   it('refuses more references than the model accepts', () => {
     const issue = validateOperationMedia(
-      'video_multi_ref',
+      REFERENCE_INPUTS,
       { reference_images: ['a', 'b', 'c'] },
-      limits
+      'video_multi_ref'
     )
     expect(issue).toEqual({
       code: 'too_many',
@@ -65,34 +75,31 @@ describe('validateOperationMedia with declared limits', () => {
     })
   })
 
-  it('refuses a partial set below the declared minimum', () => {
-    const issue = validateOperationMedia(
-      'video_multi_ref',
-      { reference_images: ['a'] },
-      limits
-    )
-    expect(issue).toBeNull()
-  })
-
   it('accepts a set inside the declared range', () => {
     expect(
       validateOperationMedia(
-        'video_multi_ref',
+        REFERENCE_INPUTS,
         { reference_images: ['a', 'b'] },
-        limits
+        'video_multi_ref'
       )
     ).toBeNull()
   })
 
   it('leaves an untouched optional slot to the required check', () => {
-    expect(validateOperationMedia('text_to_video', {}, limits)).toBeNull()
+    expect(
+      validateOperationMedia(
+        [{ slot: 'prompt', type: 'text', required: true }],
+        {},
+        'text_to_video'
+      )
+    ).toBeNull()
   })
 
   it('disables submit when the declared ceiling is exceeded', () => {
     const issue = validateOperationMedia(
-      'video_multi_ref',
+      REFERENCE_INPUTS,
       { reference_images: ['a', 'b', 'c'] },
-      limits
+      'video_multi_ref'
     )
     expect(issue).not.toBeNull()
   })

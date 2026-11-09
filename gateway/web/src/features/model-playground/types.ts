@@ -35,10 +35,9 @@ export type PlaygroundModality = 'image' | 'video'
  * Generation modes one public model ID can drive.
  *
  * Values are the gateway's own discriminators, not vendor route names: the
- * request carries `operation`, and the apimart contract validates it against a
- * per-model whitelist. The authoritative table is `operationAllowed` in
- * `relay/channel/task/apimart/video_contract.go`; `lib/operation-matrix.ts`
- * mirrors it for the form.
+ * request carries `operation`, and the gateway validates it against the
+ * published contract. `lib/operation-matrix.ts` exposes the executable video
+ * operations from `contract.operations`.
  */
 export type PlaygroundOperation =
   | 'text_to_video'
@@ -47,6 +46,10 @@ export type PlaygroundOperation =
   | 'video_multi_ref'
   | 'video_edit'
   | 'video_extend'
+  | 'end_frame'
+  | 'document_to_video'
+  | 'webpage_to_video'
+  | 'digital_human'
 
 /** Role a frame image plays in the vendor's `image_with_roles` pair. */
 export type MediaRole = 'first_frame' | 'last_frame'
@@ -101,6 +104,8 @@ export type ParamControl = {
   defaultValue: string | number | boolean | string[]
   /** Rendered inside the collapsed "advanced settings" group. */
   advanced?: boolean
+  /** Placeholder for a text control when its field needs a different cue. */
+  placeholderKey?: string
   /** Shows alongside the control when the model documents one. */
   hintKey?: string
   /**
