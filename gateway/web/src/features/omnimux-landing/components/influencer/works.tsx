@@ -51,11 +51,10 @@ export function InfluencerWorks() {
                 type='button'
                 className='inf-work'
                 onClick={() => handlePickLook(look)}
-                aria-label={t('influencer_landing.works.use')}
               >
                 <img src={look.image} alt={t(`influencer_landing.work.${look.key}`)} loading='lazy' />
                 <span className='inf-work-meta'>
-                  <span className='inf-work-name'>{t(`influencer_landing.work.${look.key}`)}</span>
+                  <span className='inf-work-name' aria-hidden='true'>{t(`influencer_landing.work.${look.key}`)}</span>
                   <span className='inf-work-use'>{t('influencer_landing.works.use')}</span>
                 </span>
               </button>

@@ -79,6 +79,14 @@ type GatewaySpec struct {
 	SourceClaim string   `json:"source_claim,omitempty"`
 }
 
+// ExecutionSpec is the optional governance block for a model that is not
+// backed by a verified gateway operation set. `stub` means catalogued but not
+// executable; `unavailable` means not offered on any gateway line.
+type ExecutionSpec struct {
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
 // ParameterSpec mirrors one entry of the optional governance parameters block.
 type ParameterSpec struct {
 	Name        string       `json:"name"`
@@ -129,6 +137,7 @@ const (
 	operationDocumentToVideo = "document_to_video"
 	operationWebpageToVideo  = "webpage_to_video"
 	operationDigitalHuman    = "digital_human"
+	operationLipSync         = "lip_sync"
 
 	operationChat = "chat"
 
@@ -149,6 +158,7 @@ const (
 const (
 	profileAPIMartVideo  = "apimart_video"
 	profileFalH3Video    = "fal_h3_video"
+	profileFalH3LipSync  = "fal_h3_lip_sync"
 	profileAutoDLH3Video = "autodl_h3_video"
 )
 
@@ -189,6 +199,10 @@ var falH3VideoOperations = []string{
 	operationTextToVideo, operationFirstFrame, operationVideoMultiRef,
 }
 
+// falH3LipSyncOperations mirrors the dedicated lip-sync branch in
+// relay/channel/task/fal/payload.go: one portrait image plus one audio track.
+var falH3LipSyncOperations = []string{operationLipSync}
+
 // autodlH3VideoOperations mirrors the AutoDL task plugin's H3 workflows. The
 // line has no reference-video entry and its lip-sync workflow is the
 // digital_human shape.
@@ -214,6 +228,12 @@ var gatewayProfiles = map[string]gatewayProfile{
 			return slices.Contains(falH3VideoOperations, operationID)
 		},
 		build: buildVideoOperation,
+	},
+	profileFalH3LipSync: {
+		allows: func(_, operationID string) bool {
+			return slices.Contains(falH3LipSyncOperations, operationID)
+		},
+		build: buildFalH3LipSyncOperation,
 	},
 	profileAutoDLH3Video: {
 		allows: func(_, operationID string) bool {
@@ -414,6 +434,30 @@ func buildVideoOperation(spec specFile, operationID string) (Operation, []string
 		Parameters: parameters,
 		Output:     OperationOutput{Type: "video", Formats: canonical(spec.OutputFormats)},
 	}, unknown, true
+}
+
+// buildFalH3LipSyncOperation expands the fal H3 lip-sync route. It consumes a
+// portrait image and an audio track; the output length follows the audio, so no
+// duration parameter is offered.
+func buildFalH3LipSyncOperation(spec specFile, operationID string) (Operation, []string, bool) {
+	if operationID != operationLipSync {
+		return Operation{}, nil, false
+	}
+	inputs := []Input{
+		fixedReferenceInput("reference_image", "image", spec.ReferenceImages),
+		fixedReferenceInput("reference_audio", "audio", spec.ReferenceAudios),
+	}
+	parameters := []Parameter{}
+	if len(spec.Resolutions) > 0 {
+		parameters = append(parameters, enumParameter("resolution", stringsToAny(spec.Resolutions), nil))
+	}
+	return Operation{
+		ID:         operationID,
+		Executable: true,
+		Inputs:     inputs,
+		Parameters: parameters,
+		Output:     OperationOutput{Type: "video"},
+	}, nil, true
 }
 
 // buildAutoDLH3VideoOperation expands the AutoDL H3 workflow vocabulary. Its
@@ -809,7 +853,6 @@ func buildDataAPIOperations(spec specFile) ([]Operation, []string) {
 			Parameters: mergeParameters(nil, spec, operationID),
 			Output:     OperationOutput{Type: "text"},
 		})
-		unknown = append(unknown, "operations."+operationID+".parameters")
 	}
 	return operations, unknown
 }

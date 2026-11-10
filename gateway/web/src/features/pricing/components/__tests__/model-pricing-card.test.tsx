@@ -230,4 +230,16 @@ describe('ModelPricingCard', () => {
     expect(generateLink).toBeInTheDocument()
     expect(generateLink).toHaveAttribute('href', '/pricing/seedream-3.0')
   })
+
+  test('exposes one real link whose name starts with its visible text', () => {
+    const { container } = render(<ModelPricingCard card={makeCard()} />)
+
+    const links = screen.getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAccessibleName('Generate Seedream 3.0')
+    const card = container.querySelector('section[data-model-id]')
+    expect(card).not.toHaveAttribute('role')
+    expect(card).not.toHaveAttribute('aria-label')
+    expect(card).not.toHaveAttribute('tabindex')
+  })
 })

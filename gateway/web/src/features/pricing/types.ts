@@ -124,6 +124,10 @@ export type ModelContract = {
   schemaVersion?: string
   /** Deterministic content hash of one contract, excluding this field. */
   contractVersion?: string
+  /** Whether this model has a verified executable gateway path. */
+  execution_status?: 'live' | 'stub' | 'unavailable'
+  /** Why a non-live model is not executable; required for stub/unavailable. */
+  execution_reason?: string
   family?: ModelFamily
   status?: string
   /**

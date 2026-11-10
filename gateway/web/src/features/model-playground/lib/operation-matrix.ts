@@ -34,6 +34,7 @@ export const OPERATION_LABEL_KEYS: Record<PlaygroundOperation, string> = {
   document_to_video: 'Document to video',
   webpage_to_video: 'Webpage to video',
   digital_human: 'Digital human',
+  lip_sync: 'Lip sync',
 }
 
 export const DEFAULT_OPERATION: PlaygroundOperation = 'text_to_video'

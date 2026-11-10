@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ArrowRight, Check, Copy } from 'lucide-react'
-import { useCallback, useMemo, type KeyboardEvent, type MouseEvent } from 'react'
+import { useCallback, useMemo, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
 
@@ -93,18 +93,6 @@ export function ModelPricingCard(props: ModelPricingCardProps) {
     }
   }, [navigate, modelId, props])
 
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLElement>) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        if (event.target === event.currentTarget) {
-          event.preventDefault()
-          handleCardClick()
-        }
-      }
-    },
-    [handleCardClick]
-  )
-
   const tierBadgeLabel =
     tierCount === 1
       ? t('1 PRICE TIER')
@@ -114,19 +102,12 @@ export function ModelPricingCard(props: ModelPricingCardProps) {
 
   return (
     <section
-      role='link'
-      tabIndex={0}
       onClick={handleCardClick}
-      onKeyDown={handleKeyDown}
       className={cn(
         'group bg-card border-border hover:border-foreground/30 hover:shadow-xs w-full cursor-pointer border transition-all',
         props.className
       )}
       data-model-id={modelId}
-      aria-label={t('View model {{name}} and generate', {
-        name: props.card.name,
-        defaultValue: `View ${props.card.name}`,
-      })}
     >
       <header className='flex items-start justify-between gap-4 px-4 py-3 sm:px-5 sm:py-3.5'>
         <div className='flex min-w-0 flex-1 flex-col gap-1 overflow-hidden'>
@@ -179,6 +160,7 @@ export function ModelPricingCard(props: ModelPricingCardProps) {
           </span>
           <a
             href={modelPageUrl}
+            aria-label={`${t('Generate')} ${props.card.name}`}
             onClick={(event) => {
               // Let user Cmd+click / middle click open in new tab normally; otherwise handle via card click
               if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {

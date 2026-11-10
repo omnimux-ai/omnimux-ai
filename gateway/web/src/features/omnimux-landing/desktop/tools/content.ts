@@ -111,7 +111,7 @@ export const TOOL_PAGES: Record<
   en: {
     video: {
       path: TOOL_PATHS.en.video,
-      title: 'TikTok Video Downloader — Save TikTok Videos as MP4 | OmniMux',
+      title: 'TikTok Video Downloader — Save Videos as MP4 | OmniMux',
       description:
         'Paste a public TikTok video link or share text and save the video as an MP4 file. Free in your browser, nothing to install, preview before you download.',
       h1: 'TikTok Video Downloader',

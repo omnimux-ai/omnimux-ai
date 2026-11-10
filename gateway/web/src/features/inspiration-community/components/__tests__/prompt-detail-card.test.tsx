@@ -62,6 +62,17 @@ const imageItem: PromptItem = {
 }
 
 describe('PromptDetailCard browsing tile', () => {
+  it('names the tile once through a descriptive cover alt', () => {
+    render(<PromptDetailCard item={videoItem} onOpenPreview={vi.fn()} />)
+
+    const control = screen.getByRole('button')
+    expect(control).not.toHaveAttribute('aria-label')
+    expect(control).toHaveAccessibleName(videoItem.title)
+    expect(
+      screen.getByRole('img', { name: videoItem.title })
+    ).toBeInTheDocument()
+  })
+
   it('is a single control that opens the detail layer under the item title', async () => {
     const onOpenPreview = vi.fn()
     const user = userEvent.setup()

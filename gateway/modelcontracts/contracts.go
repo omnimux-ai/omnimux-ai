@@ -60,6 +60,14 @@ type Contract struct {
 	// ContractVersion is a deterministic 16-hex content hash of this contract,
 	// computed with the field itself excluded. Any projected change moves it.
 	ContractVersion string `json:"contractVersion,omitempty"`
+	// ExecutionStatus states whether this model has a verified executable
+	// gateway path. `live` requires at least one executable operation; `stub`
+	// means the model is catalogued but has no verified execution profile yet;
+	// `unavailable` means the model is not offered on any gateway line.
+	ExecutionStatus string `json:"execution_status"`
+	// ExecutionReason is required for any non-live status so a client can tell
+	// "not implemented" apart from "not applicable".
+	ExecutionReason string `json:"execution_reason,omitempty"`
 	Family          string `json:"family,omitempty"`
 	Status          string `json:"status,omitempty"`
 	Basis           string `json:"basis,omitempty"`
@@ -154,6 +162,7 @@ type specFile struct {
 	ServiceNotes        string            `json:"service_notes,omitempty"`
 	Operations          []string          `json:"operations"`
 	Gateway             *GatewaySpec      `json:"gateway"`
+	Execution           *ExecutionSpec    `json:"execution"`
 	Parameters          []ParameterSpec   `json:"parameters"`
 	InputModalities     []string          `json:"input_modalities"`
 	ToolCalling         *bool             `json:"tool_calling"`
@@ -262,9 +271,15 @@ func projectContract(spec specFile) (Contract, error) {
 	if err != nil {
 		return Contract{}, err
 	}
+	executionStatus, executionReason, err := executionStateFor(spec, operations)
+	if err != nil {
+		return Contract{}, err
+	}
 	contract := Contract{
 		ModelID:             spec.ModelID,
 		SchemaVersion:       SchemaVersion,
+		ExecutionStatus:     executionStatus,
+		ExecutionReason:     executionReason,
 		Family:              spec.Family,
 		Status:              spec.Status,
 		Basis:               spec.Basis,
@@ -310,6 +325,47 @@ func projectContract(spec specFile) (Contract, error) {
 	}
 	contract.ContractVersion = version
 	return contract, nil
+}
+
+// executionStateFor derives the published execution status. A model with a
+// verified gateway path is live; a model whose spec explicitly declares a
+// non-live state must say why; a video model without a gateway block stays a
+// stub instead of silently passing as executable.
+func executionStateFor(spec specFile, operations []Operation) (string, string, error) {
+	hasExecutable := false
+	for _, operation := range operations {
+		if operation.Executable {
+			hasExecutable = true
+			break
+		}
+	}
+
+	if spec.Execution != nil {
+		status := strings.TrimSpace(spec.Execution.Status)
+		reason := strings.TrimSpace(spec.Execution.Reason)
+		switch status {
+		case "live":
+			if !hasExecutable {
+				return "", "", fmt.Errorf("execution.status=live requires at least one executable operation")
+			}
+			return "live", reason, nil
+		case "stub", "unavailable":
+			if hasExecutable {
+				return "", "", fmt.Errorf("execution.status=%s contradicts executable operations", status)
+			}
+			if reason == "" {
+				return "", "", fmt.Errorf("execution.status=%s requires execution.reason", status)
+			}
+			return status, reason, nil
+		default:
+			return "", "", fmt.Errorf("unknown execution.status %q", status)
+		}
+	}
+
+	if hasExecutable {
+		return "live", "", nil
+	}
+	return "stub", "no verified gateway operation profile is published for this model", nil
 }
 
 // unknownList keeps generated unknown paths ordered and duplicate-free.

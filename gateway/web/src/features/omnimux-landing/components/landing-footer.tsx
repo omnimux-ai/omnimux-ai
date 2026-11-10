@@ -130,12 +130,15 @@ export function LandingFooter() {
             >
               {INTERFACE_LANGUAGE_OPTIONS.map((option) => {
                 const active = option.code === currentLanguage
+                const shortLabel =
+                  LANGUAGE_SHORT_LABELS[option.code] ??
+                  option.code.toUpperCase()
                 return (
                   <button
                     key={option.code}
                     type='button'
                     title={option.label}
-                    aria-label={option.label}
+                    aria-label={`${shortLabel} · ${option.label}`}
                     aria-pressed={active}
                     onClick={() => {
                       void changeLanguage(option.code)
@@ -147,8 +150,7 @@ export function LandingFooter() {
                         : 'text-white/60 hover:text-white'
                     )}
                   >
-                    {LANGUAGE_SHORT_LABELS[option.code] ??
-                      option.code.toUpperCase()}
+                    {shortLabel}
                   </button>
                 )
               })}

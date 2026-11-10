@@ -127,7 +127,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		body = map[string]any{}
 		_ = common.UnmarshalBodyReusable(c, &body)
 	}
-	ratios, err := estimateVideoBilling(info.OriginModelName, body)
+	ratios, err := estimateVideoBillingWithRateModel(info.OriginModelName, info.GetUpstreamModelName(), body)
 	if err != nil {
 		// Validated in ValidateRequestAndSetAction; fall back to default seconds only.
 		return map[string]float64{"seconds": float64(defaultVideoSeconds)}
@@ -208,6 +208,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 	if kind == kindVideo {
 		delete(out, "operation")
+		if isEvoLinkWanUpstream(upstream) {
+			normalizeEvoLinkWanRequestBody(out)
+		}
 		// fork: Omni-Flash-Ext 的按次价只覆盖 ≤1080P 档，超档（4K / 超时长）在入口拒绝，避免上游计费高于售价。
 		if isOmniFlashExtModel(upstream) || isOmniFlashExtModel(info.OriginModelName) {
 			if err := validateOmniFlashExtCaps(out); err != nil {
@@ -242,6 +245,42 @@ func mapUpstreamModel(name string) string {
 		return "suno"
 	default:
 		return n
+	}
+}
+
+// isEvoLinkWanUpstream identifies the EvoLink Wan 3.0 wire SKUs. EvoLink's
+// video API names its quality and duration fields `quality` and `duration`,
+// while the gateway's task request surface uses `resolution` and `seconds`.
+// Without this translation EvoLink silently falls back to its 720p/5s defaults,
+// so the customer-facing resolution tier and the supplier cost diverge.
+func isEvoLinkWanUpstream(name string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(name)), "wan3.0")
+}
+
+func normalizeEvoLinkWanRequestBody(body map[string]any) {
+	if value, ok := body["resolution"]; ok {
+		if value != nil {
+			if _, exists := body["quality"]; !exists {
+				body["quality"] = strings.ToLower(strings.TrimSpace(fmt.Sprint(value)))
+			}
+		}
+		delete(body, "resolution")
+	} else if value, ok := body["quality"]; ok && value != nil {
+		body["quality"] = strings.ToLower(strings.TrimSpace(fmt.Sprint(value)))
+	}
+	if _, ok := body["duration"]; !ok {
+		if value, ok := body["seconds"]; ok {
+			body["duration"] = value
+		}
+	}
+	delete(body, "seconds")
+	if value, ok := body["size"]; ok {
+		if _, exists := body["aspect_ratio"]; !exists && value != nil {
+			if size := strings.TrimSpace(fmt.Sprint(value)); size != "" && size != "auto" {
+				body["aspect_ratio"] = size
+			}
+		}
+		delete(body, "size")
 	}
 }
 

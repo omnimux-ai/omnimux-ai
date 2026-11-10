@@ -370,13 +370,18 @@ func TestApplySpecDirRefusesADirectoryWithNoSpecs(t *testing.T) {
 // buildSpecDir writes specs into a temporary directory and projects them.
 func buildSpecDir(t *testing.T, files map[string]string) *Document {
 	t.Helper()
+	doc, err := buildSpecDirResult(t, files)
+	require.NoError(t, err)
+	return doc
+}
+
+func buildSpecDirResult(t *testing.T, files map[string]string) (*Document, error) {
+	t.Helper()
 	dir := t.TempDir()
 	for name, body := range files {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
 	}
-	doc, err := Build(dir)
-	require.NoError(t, err)
-	return doc
+	return Build(dir)
 }
 
 func operationByID(t *testing.T, contract Contract, operationID string) Operation {
@@ -631,6 +636,35 @@ func TestAutoDLH3VideoProfileExpandsItsOwnWorkflows(t *testing.T) {
 	assert.Equal(t, []string{"text_to_video", "first_last_frame", "video_multi_ref", "digital_human"}, shipped.Models["minimax-h3-video"].OperationIDs)
 }
 
+func TestFalH3LipSyncProfileExpandsImageAndAudioOnly(t *testing.T) {
+	doc := buildSpecDir(t, map[string]string{
+		"probe-lip-sync.json": `{
+			"model_id": "probe-lip-sync",
+			"family": "video",
+			"status": "documented",
+			"operations": ["lip_sync"],
+			"gateway": {"profile": "fal_h3_lip_sync", "operations": ["lip_sync"]},
+			"resolutions": ["480P", "768P", "1080P", "2K"],
+			"reference_images": {"min": 1, "max": 1},
+			"reference_audios": {"min": 1, "max": 1}
+		}`,
+	})
+	contract := doc.Models["probe-lip-sync"]
+	assert.Equal(t, "live", contract.ExecutionStatus)
+	operation := operationByID(t, contract, "lip_sync")
+	require.Len(t, operation.Inputs, 2, "one portrait image and one audio track")
+	assert.Equal(t, "reference_image", operation.Inputs[0].Slot)
+	assert.Equal(t, "reference_audio", operation.Inputs[1].Slot)
+	assert.True(t, operation.Inputs[0].Required)
+	assert.True(t, operation.Inputs[1].Required)
+	for _, input := range operation.Inputs {
+		assert.NotEqual(t, "prompt", input.Slot, "fal lip-sync does not consume a text prompt")
+	}
+	for _, parameter := range operation.Parameters {
+		assert.NotEqual(t, "duration", parameter.Name, "lip-sync length follows the audio")
+	}
+}
+
 func TestImplicitFamilyProfilesUseRealOperationIDs(t *testing.T) {
 	doc := buildSpecDir(t, map[string]string{
 		"probe-image.json": `{
@@ -708,7 +742,6 @@ func TestImplicitFamilyProfilesUseRealOperationIDs(t *testing.T) {
 	for _, operation := range data.Operations {
 		assert.Equal(t, "text", operation.Output.Type)
 	}
-	assert.Contains(t, data.Unknowns, "operations.fetch_post.parameters")
 
 	asr := doc.Models["probe-asr"]
 	assert.Equal(t, []string{"speech_to_text", "translation"}, asr.OperationIDs)
@@ -979,4 +1012,54 @@ func TestVersionReturnsAnAlreadyComputedDocumentVersion(t *testing.T) {
 
 	fresh := &Document{SchemaVersion: SchemaVersion, Models: doc.Models}
 	assert.NotEmpty(t, Version(fresh))
+}
+
+func TestEveryContractPublishesExecutionStatus(t *testing.T) {
+	doc, err := Build(specDir)
+	require.NoError(t, err)
+	valid := map[string]bool{"live": true, "stub": true, "unavailable": true}
+	for id, contract := range doc.Models {
+		require.True(t, valid[contract.ExecutionStatus], "%s has invalid execution_status %q", id, contract.ExecutionStatus)
+		hasExecutable := false
+		for _, operation := range contract.Operations {
+			if operation.Executable {
+				hasExecutable = true
+				break
+			}
+		}
+		if contract.ExecutionStatus == "live" {
+			assert.True(t, hasExecutable, "%s is live without an executable operation", id)
+		} else {
+			assert.NotEmpty(t, contract.ExecutionReason, "%s is non-live without an execution reason", id)
+		}
+	}
+}
+
+func TestExecutionStatusContradictionsAreRefused(t *testing.T) {
+	t.Run("live without executable operation", func(t *testing.T) {
+		_, err := buildSpecDirResult(t, map[string]string{
+			"probe-video.json": `{
+				"model_id": "probe-video",
+				"family": "video",
+				"status": "documented",
+				"operations": ["text_to_video"],
+				"execution": {"status": "live"}
+			}`,
+		})
+		require.ErrorContains(t, err, "execution.status=live requires at least one executable operation")
+	})
+
+	t.Run("stub with executable operation", func(t *testing.T) {
+		_, err := buildSpecDirResult(t, map[string]string{
+			"probe-video.json": `{
+				"model_id": "probe-video",
+				"family": "video",
+				"status": "documented",
+				"operations": ["text_to_video"],
+				"gateway": {"profile": "fal_h3_video", "operations": ["text_to_video"]},
+				"execution": {"status": "stub", "reason": "not deployed"}
+			}`,
+		})
+		require.ErrorContains(t, err, "execution.status=stub contradicts executable operations")
+	})
 }

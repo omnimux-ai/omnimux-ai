@@ -50,6 +50,7 @@ export type PlaygroundOperation =
   | 'document_to_video'
   | 'webpage_to_video'
   | 'digital_human'
+  | 'lip_sync'
 
 /** Role a frame image plays in the vendor's `image_with_roles` pair. */
 export type MediaRole = 'first_frame' | 'last_frame'

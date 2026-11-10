@@ -103,6 +103,60 @@ func TestEstimateVideoBilling_FractionalDurationRejected(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestEstimateVideoBilling_Wan30EvoLinkResolutionTiers(t *testing.T) {
+	for _, tc := range []struct {
+		resolution string
+		wantTier   float64
+	}{
+		{"480P", 0.25},
+		{"720p", 0.5},
+		{"1080P", 1},
+		{"", 0.5},
+	} {
+		body := map[string]any{"duration": 5}
+		if tc.resolution != "" {
+			body["resolution"] = tc.resolution
+		}
+		r, err := estimateVideoBillingWithRateModel("wan-3.0", "wan3.0-text-to-video", body)
+		require.NoError(t, err, tc.resolution)
+		assert.Equal(t, 5.0, r["seconds"], tc.resolution)
+		tier := 1.0
+		if value, ok := r["tier"]; ok {
+			tier = value
+		}
+		assert.InDelta(t, tc.wantTier, tier, 1e-9, tc.resolution)
+	}
+}
+
+func TestEstimateVideoBilling_Wan30PrimeUpstreamUsesStandardTable(t *testing.T) {
+	r, err := estimateVideoBillingWithRateModel("wan-3.0", "wan3.0-prime-text-to-video", map[string]any{
+		"duration":   5,
+		"resolution": "720P",
+	})
+	require.NoError(t, err)
+	// The Prime group applies its 1.5 group ratio; the resolution tier itself
+	// is the same official Standard table.
+	assert.InDelta(t, 0.5, r["tier"], 1e-9)
+}
+
+func TestEstimateVideoBilling_PidoiWanSkuKeepsNoTier(t *testing.T) {
+	r, err := estimateVideoBillingWithRateModel("wan-3.0", "wan30-720p", map[string]any{
+		"duration":   5,
+		"resolution": "720P",
+	})
+	require.NoError(t, err)
+	_, hasTier := r["tier"]
+	assert.False(t, hasTier)
+}
+
+func TestEstimateVideoBilling_Wan30UnknownResolutionRejected(t *testing.T) {
+	_, err := estimateVideoBillingWithRateModel("wan-3.0", "wan3.0-text-to-video", map[string]any{
+		"duration":   5,
+		"resolution": "2K",
+	})
+	require.Error(t, err)
+}
+
 func TestHasMediaInput_RecognizesRoleAudioAndDocumentFields(t *testing.T) {
 	for _, body := range []map[string]any{
 		{"image_with_roles": []any{map[string]any{"url": "asset://a", "role": "first_frame"}}},

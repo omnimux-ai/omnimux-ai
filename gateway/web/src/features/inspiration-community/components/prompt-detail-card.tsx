@@ -68,7 +68,6 @@ export function PromptDetailCard(props: PromptDetailCardProps) {
     <article id={`prompt-${item.slug}`} className='min-w-0 scroll-mt-24'>
       <button
         type='button'
-        aria-label={title}
         onClick={() => props.onOpenPreview(item)}
         className='group bg-muted focus-visible:ring-ring relative block w-full min-w-0 overflow-hidden rounded-2xl text-left transition duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:outline-none'
       >
@@ -80,7 +79,7 @@ export function PromptDetailCard(props: PromptDetailCardProps) {
             <img
               ref={coverLoad.imageRef}
               src={stillCover}
-              alt=''
+              alt={title}
               loading='lazy'
               decoding='async'
               onLoad={coverLoad.onLoad}
@@ -112,8 +111,13 @@ export function PromptDetailCard(props: PromptDetailCardProps) {
           </span>
         </span>
 
-        {/* Caption scrim: the only text the browsing layer carries. */}
-        <span className='pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-3 pt-12 pb-3 text-white'>
+        {/* Caption scrim: the only text the browsing layer carries. With a
+            cover, the image alt already names the button, so the caption is
+            hidden from assistive tech to keep the name read once. */}
+        <span
+          aria-hidden={stillCover ? true : undefined}
+          className='pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-3 pt-12 pb-3 text-white'
+        >
           <span className='mb-1 inline-flex items-center gap-1 text-[11px] font-medium tracking-[0.14em] text-white/80 uppercase'>
             {isVideo ? (
               <Play aria-hidden='true' className='size-3 fill-current' />

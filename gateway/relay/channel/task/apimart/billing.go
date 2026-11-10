@@ -71,6 +71,20 @@ var klingV3Rates = map[string]float64{
 	"4k-sound":  0.42856,
 }
 
+// wan-3.0 public ModelPrice anchors the official wan3.0-video standard 1080P
+// list price (¥1.20/s). EvoLink exposes the same capability across 480P/720P/
+// 1080P and bills each resolution at the official Alibaba ratio; the ratios
+// below apply to EvoLink's upstream SKUs only. Pidoi's fixed-resolution SKUs
+// (wan30-720p / wan30-1080p-fast) deliberately do not match these names and
+// keep their existing group-ratio pricing.
+// The Prime group reuses this table with a 1.5 group ratio: official Prime is
+// exactly 1.5x the Standard list price at every resolution.
+var wan30Rates = map[string]float64{
+	"480p":  0.25,
+	"720p":  0.5,
+	"1080p": 1.0,
+}
+
 // EstimateVideoBilling exposes the adapter's own duration and resolution tier
 // factors so a product surface can show the same amount the pre-charge will use
 // instead of duplicating the rate tables. It does not mutate billing state.
@@ -79,6 +93,14 @@ func EstimateVideoBilling(modelName string, raw map[string]any) (map[string]floa
 }
 
 func estimateVideoBilling(modelName string, raw map[string]any) (map[string]float64, error) {
+	return estimateVideoBillingWithRateModel(modelName, modelName, raw)
+}
+
+// estimateVideoBillingWithRateModel keeps duration validation tied to the
+// public model while selecting the rate table from the actual upstream SKU.
+// EvoLink serves wan-3.0 through separate text/image/reference SKUs, and those
+// names carry the only reliable signal for resolution-tier billing.
+func estimateVideoBillingWithRateModel(modelName, rateModel string, raw map[string]any) (map[string]float64, error) {
 	sec, err := parseDurationSeconds(raw)
 	if err != nil {
 		return nil, err
@@ -98,7 +120,7 @@ func estimateVideoBilling(modelName string, raw map[string]any) (map[string]floa
 		sec = relaycommon.MaxTaskDurationSeconds
 	}
 
-	tier, err := resolveTierRatio(modelName, raw)
+	tier, err := resolveTierRatio(rateModel, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -166,10 +188,30 @@ func resolveTierRatio(modelName string, raw map[string]any) (float64, error) {
 		return klingTierRatio(klingV26Rates, "default", raw)
 	case strings.Contains(m, "kling-v3"):
 		return klingTierRatio(klingV3Rates, "default", raw)
+	case strings.Contains(m, "wan3.0"):
+		return wan30TierRatio(raw)
 	default:
 		// Unknown video model: charge duration only (tier=1). Safer than inventing rates.
 		return 1, nil
 	}
+}
+
+func wan30TierRatio(raw map[string]any) (float64, error) {
+	resolution, explicit := parseResolution(raw)
+	key := resolution
+	if key == "" {
+		// EvoLink defaults an omitted quality to 720p. Charging the 1080P base
+		// here would overcharge every default request.
+		key = "720p"
+	}
+	rate, ok := wan30Rates[key]
+	if !ok {
+		if explicit {
+			return 0, fmt.Errorf("unsupported resolution %q for this model", resolution)
+		}
+		rate = wan30Rates["720p"]
+	}
+	return rate, nil
 }
 
 func seedanceTierRatio(rates map[string]float64, baseKey string, raw map[string]any) (float64, error) {

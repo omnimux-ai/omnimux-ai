@@ -8,7 +8,7 @@ DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
 
-.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
+.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test model-contract-check
 
 all: build-all-web start-api
 
@@ -49,6 +49,17 @@ test:
 	@cd relaykit && GOWORK=off go test ./...
 	@echo "Testing tokenkit Go module..."
 	@cd tokenkit && GOWORK=off go test ./...
+
+# One command for the model capability contract workflow. A new or changed model
+# is not ready until this passes.
+model-contract-check:
+	@echo "Checking model capability contract..."
+	@GOWORK=off go test ./modelcontracts
+	@node scripts/ops/check-model-specs.mjs
+	@node scripts/ops/check-spec-traceability.mjs
+	@node scripts/ops/check-contract-publication.mjs
+	@node scripts/ops/check-model-contract-completeness.mjs
+	@cd web && bunx vitest run src/features/model-playground/lib/__tests__/contract-render-parity.test.ts
 
 reset-setup:
 	@echo "Resetting local setup wizard state..."

@@ -109,6 +109,46 @@ func TestEstimateBilling_SoundEffectIsPerCall(t *testing.T) {
 	assert.Equal(t, map[string]float64{"units": 1}, (&TaskAdaptor{}).EstimateBilling(c, info))
 }
 
+func TestNormalizeEvoLinkWanRequestBody(t *testing.T) {
+	body := map[string]any{
+		"model":      "wan3.0-text-to-video",
+		"prompt":     "a cat",
+		"resolution": "480P",
+		"seconds":    "4",
+		"size":       "16:9",
+	}
+	normalizeEvoLinkWanRequestBody(body)
+	assert.Equal(t, "480p", body["quality"])
+	assert.NotContains(t, body, "resolution")
+	assert.Equal(t, "4", body["duration"])
+	assert.NotContains(t, body, "seconds")
+	assert.Equal(t, "16:9", body["aspect_ratio"])
+	assert.NotContains(t, body, "size")
+}
+
+func TestNormalizeEvoLinkWanRequestBodyKeepsExplicitUpstreamFields(t *testing.T) {
+	body := map[string]any{
+		"quality":      "1080P",
+		"duration":     4,
+		"seconds":      8,
+		"aspect_ratio": "9:16",
+		"size":         "16:9",
+	}
+	normalizeEvoLinkWanRequestBody(body)
+	assert.Equal(t, "1080p", body["quality"])
+	assert.Equal(t, 4, body["duration"])
+	assert.NotContains(t, body, "seconds")
+	assert.Equal(t, "9:16", body["aspect_ratio"])
+	assert.NotContains(t, body, "size")
+}
+
+func TestIsEvoLinkWanUpstream(t *testing.T) {
+	assert.True(t, isEvoLinkWanUpstream("wan3.0-text-to-video"))
+	assert.True(t, isEvoLinkWanUpstream("wan3.0-prime-reference-video"))
+	assert.False(t, isEvoLinkWanUpstream("wan30-720p"))
+	assert.False(t, isEvoLinkWanUpstream("wan-3.0"))
+}
+
 func TestBuildRequestBody_MusicInjectsLiveSunoVersion(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())

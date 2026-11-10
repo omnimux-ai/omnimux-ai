@@ -47,7 +47,7 @@ export function CnLangMenu() {
             type='button'
             className='cn-lang-trigger'
             title={copy.nav.langTitle}
-            aria-label={`${copy.nav.langTitle}：${current.label}`}
+            aria-label={`${current.short} · ${copy.nav.langTitle}：${current.label}`}
           />
         }
       >
