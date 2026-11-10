@@ -1,6 +1,14 @@
 {
   "schemaVersion": "2.0",
-  "version": "d03dcb0f5fd534e6",
+  "version": "f44e4e8253dab913",
+  "defaults": {
+    "chat": "gemini-3.8-flash",
+    "speech_to_text": "whisper-1",
+    "text_to_image": "gpt-image-2.5",
+    "text_to_music": "suno",
+    "text_to_video": "seedance-2-5",
+    "vision_chat": "gemini-3.8-flash"
+  },
   "models": {
     "bigasr-auc": {
       "model_id": "bigasr-auc",
@@ -2786,7 +2794,7 @@
     "gemini-3.8-flash": {
       "model_id": "gemini-3.8-flash",
       "schemaVersion": "2.0",
-      "contractVersion": "61cbf5fb32161632",
+      "contractVersion": "fa417e0e596d457f",
       "execution_status": "live",
       "family": "llm",
       "status": "documented",
@@ -2891,6 +2899,12 @@
       },
       "context_window_tokens": 1048576,
       "max_output_tokens": 65536,
+      "reasoning_efforts": {
+        "high": "high",
+        "low": "low",
+        "medium": "medium"
+      },
+      "default_reasoning_effort": "medium",
       "billing": {
         "unit": "per_token",
         "unit_label": {
@@ -2909,7 +2923,7 @@
     "gemini-4-argon": {
       "model_id": "gemini-4-argon",
       "schemaVersion": "2.0",
-      "contractVersion": "fefc59db82bf2f48",
+      "contractVersion": "df8ab751122c7086",
       "execution_status": "live",
       "family": "llm",
       "status": "partial",
@@ -2979,6 +2993,12 @@
           "video/mp4"
         ]
       },
+      "reasoning_efforts": {
+        "high": "high",
+        "low": "low",
+        "medium": "medium"
+      },
+      "default_reasoning_effort": "medium",
       "billing": {
         "unit": "per_token",
         "unit_label": {
@@ -4194,7 +4214,7 @@
     "grok-4.5": {
       "model_id": "grok-4.5",
       "schemaVersion": "2.0",
-      "contractVersion": "eaa4f61cc7d4ffa7",
+      "contractVersion": "72f235637dcada26",
       "execution_status": "live",
       "family": "llm",
       "status": "partial",
@@ -4244,12 +4264,18 @@
           "image/png"
         ]
       },
-      "context_window_tokens": 500000
+      "context_window_tokens": 500000,
+      "reasoning_efforts": {
+        "high": "high",
+        "low": "low",
+        "medium": "medium"
+      },
+      "default_reasoning_effort": "high"
     },
     "grok-4.6": {
       "model_id": "grok-4.6",
       "schemaVersion": "2.0",
-      "contractVersion": "6eb768d5c0c59575",
+      "contractVersion": "90ee578d9f6d982e",
       "execution_status": "live",
       "family": "llm",
       "status": "documented",
@@ -4299,7 +4325,14 @@
           "image/png"
         ]
       },
-      "context_window_tokens": 500000
+      "context_window_tokens": 500000,
+      "reasoning_efforts": {
+        "high": "high",
+        "low": "low",
+        "medium": "medium",
+        "xhigh": "xhigh"
+      },
+      "default_reasoning_effort": "high"
     },
     "grok-imagine-video-1-5": {
       "model_id": "grok-imagine-video-1-5",

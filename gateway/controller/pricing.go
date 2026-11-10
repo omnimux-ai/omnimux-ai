@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/modelcontracts"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -31,6 +32,31 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 				break
 			}
 		}
+	}
+	return filtered
+}
+
+// filterPricingDefaults keeps only recommendation entries whose model is visible
+// in this response and still carries at least one enabling group. A recommendation
+// must never leak a model id the caller cannot actually select.
+func filterPricingDefaults(pricing []model.Pricing, defaults map[string]string) map[string]string {
+	if len(defaults) == 0 {
+		return nil
+	}
+	present := make(map[string]struct{}, len(pricing))
+	for _, item := range pricing {
+		if len(item.EnableGroup) > 0 {
+			present[item.ModelName] = struct{}{}
+		}
+	}
+	filtered := make(map[string]string)
+	for operation, modelID := range defaults {
+		if _, ok := present[modelID]; ok {
+			filtered[operation] = modelID
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
 	}
 	return filtered
 }
@@ -64,7 +90,7 @@ func GetPricing(c *gin.Context) {
 		}
 	}
 
-	c.JSON(200, gin.H{
+	response := gin.H{
 		"success":            true,
 		"data":               pricing,
 		"vendors":            model.GetVendors(),
@@ -73,7 +99,11 @@ func GetPricing(c *gin.Context) {
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(group),
 		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
-	})
+	}
+	if defaults := filterPricingDefaults(pricing, modelcontracts.All().Defaults); len(defaults) > 0 {
+		response["defaults"] = defaults
+	}
+	c.JSON(200, response)
 }
 
 func ResetModelRatio(c *gin.Context) {

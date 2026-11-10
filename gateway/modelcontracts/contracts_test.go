@@ -1063,3 +1063,91 @@ func TestExecutionStatusContradictionsAreRefused(t *testing.T) {
 		require.ErrorContains(t, err, "execution.status=stub contradicts executable operations")
 	})
 }
+
+func TestProjectDefaultsAggregatesRecommendationsAndRejectsConflicts(t *testing.T) {
+	defaults, err := projectDefaults([]specFile{
+		{ModelID: "gemini-3.8-flash", Family: "llm", DefaultFor: []string{"chat", "vision_chat"}},
+		{ModelID: "gpt-image-2.5", Family: "image", DefaultFor: []string{"text_to_image"}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"chat":          "gemini-3.8-flash",
+		"vision_chat":   "gemini-3.8-flash",
+		"text_to_image": "gpt-image-2.5",
+	}, defaults)
+
+	_, err = projectDefaults([]specFile{
+		{ModelID: "a", Family: "llm", DefaultFor: []string{"chat"}},
+		{ModelID: "b", Family: "llm", DefaultFor: []string{"chat"}},
+	})
+	require.ErrorContains(t, err, "claimed by both")
+
+	_, err = projectDefaults([]specFile{
+		{ModelID: "a", Family: "llm", DefaultFor: []string{"unknown"}},
+	})
+	require.ErrorContains(t, err, "unknown default_for")
+
+	_, err = projectDefaults([]specFile{
+		{ModelID: "a", Family: "image", DefaultFor: []string{"chat"}},
+	})
+	require.ErrorContains(t, err, "requires family")
+}
+
+func TestReasoningEffortsProjectAndValidate(t *testing.T) {
+	contract, err := projectContract(specFile{
+		ModelID:                "probe-llm",
+		Family:                 "llm",
+		Status:                 "documented",
+		Operations:             []string{"chat"},
+		ReasoningEfforts:       map[string]string{"low": "low", "high": "high"},
+		DefaultReasoningEffort: "high",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"low": "low", "high": "high"}, contract.ReasoningEfforts)
+	assert.Equal(t, "high", contract.DefaultReasoningEffort)
+
+	_, err = projectContract(specFile{
+		ModelID:                "probe-llm",
+		Family:                 "llm",
+		Status:                 "documented",
+		Operations:             []string{"chat"},
+		ReasoningEfforts:       map[string]string{"low": "low"},
+		DefaultReasoningEffort: "high",
+	})
+	require.ErrorContains(t, err, "not a key in reasoning_efforts")
+
+	_, err = projectContract(specFile{
+		ModelID:                "probe-llm",
+		Family:                 "llm",
+		Status:                 "documented",
+		Operations:             []string{"chat"},
+		DefaultReasoningEffort: "high",
+	})
+	require.ErrorContains(t, err, "not a key in reasoning_efforts")
+}
+
+func TestShippedDefaultsReferenceShippedContracts(t *testing.T) {
+	doc, err := Build(specDir)
+	require.NoError(t, err)
+	require.NotEmpty(t, doc.Defaults)
+	for operation, modelID := range doc.Defaults {
+		_, ok := doc.Models[modelID]
+		assert.True(t, ok, "default_for %s references unknown model %s", operation, modelID)
+	}
+	shipped := All()
+	assert.Equal(t, doc.Defaults, shipped.Defaults, "shipped defaults must match the governance specs")
+}
+
+func TestVersionIncludesDefaults(t *testing.T) {
+	first := &Document{
+		SchemaVersion: "2.0",
+		Models:        map[string]Contract{},
+		Defaults:      map[string]string{"chat": "a"},
+	}
+	second := &Document{
+		SchemaVersion: "2.0",
+		Models:        map[string]Contract{},
+		Defaults:      map[string]string{"chat": "b"},
+	}
+	require.NotEqual(t, Version(first), Version(second))
+}

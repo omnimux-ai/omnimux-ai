@@ -110,6 +110,12 @@ type Contract struct {
 	ContextWindowTokens *int              `json:"context_window_tokens,omitempty"`
 	MaxOutputTokens     *int              `json:"max_output_tokens,omitempty"`
 
+	// ReasoningEfforts maps the user-facing reasoning level to the wire value a
+	// client sends upstream. A level the spec does not establish stays absent,
+	// and DefaultReasoningEffort is meaningful only when it names a key here.
+	ReasoningEfforts       map[string]string `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort string            `json:"default_reasoning_effort,omitempty"`
+
 	// Billing declares how this model is charged, so a client can price a call
 	// before submitting instead of inferring the unit from a bare number.
 	//
@@ -147,6 +153,7 @@ type Endpoint struct {
 type Document struct {
 	SchemaVersion string              `json:"schemaVersion"`
 	Version       string              `json:"version"`
+	Defaults      map[string]string   `json:"defaults,omitempty"`
 	Models        map[string]Contract `json:"models"`
 }
 
@@ -155,51 +162,67 @@ type Document struct {
 // routing) are deliberately not read: they are authoring material, not contract.
 // Only explicitly authored service_notes are published as customer guidance.
 type specFile struct {
-	ModelID             string            `json:"model_id"`
-	Family              string            `json:"family"`
-	Status              string            `json:"status"`
-	Basis               string            `json:"basis,omitempty"`
-	ServiceNotes        string            `json:"service_notes,omitempty"`
-	Operations          []string          `json:"operations"`
-	Gateway             *GatewaySpec      `json:"gateway"`
-	Execution           *ExecutionSpec    `json:"execution"`
-	Parameters          []ParameterSpec   `json:"parameters"`
-	InputModalities     []string          `json:"input_modalities"`
-	ToolCalling         *bool             `json:"tool_calling"`
-	Streaming           *bool             `json:"streaming"`
-	PromptCaching       *bool             `json:"prompt_caching"`
-	AudioKind           string            `json:"audio_kind"`
-	InputFormats        []string          `json:"input_formats"`
-	MaxInputBytes       *int64            `json:"max_input_bytes"`
-	MaxInputSeconds     *int              `json:"max_input_seconds"`
-	MaxOutputSeconds    *int              `json:"max_output_seconds"`
-	Voices              any               `json:"voices"`
-	Languages           any               `json:"languages"`
-	Endpoints           []Endpoint        `json:"endpoints"`
-	Auth                string            `json:"auth"`
-	RateLimit           any               `json:"rate_limit"`
-	Pagination          string            `json:"pagination"`
-	ResponseFields      []string          `json:"response_fields"`
-	DurationsSeconds    *DurationEnvelope `json:"durations_seconds"`
-	Resolutions         []string          `json:"resolutions"`
-	AspectRatios        []string          `json:"aspect_ratios"`
-	AudioSupported      *bool             `json:"audio_supported"`
-	OutputFormats       []string          `json:"output_formats"`
-	OutputSizes         []string          `json:"output_sizes"`
-	ReferenceImages     *MediaLimits      `json:"reference_images"`
-	ReferenceVideos     *MediaLimits      `json:"reference_videos"`
-	ReferenceAudios     *MediaLimits      `json:"reference_audios"`
-	PromptMaxChars      *int              `json:"prompt_max_chars"`
-	PromptMaxUTF8Bytes  *int              `json:"prompt_max_utf8_bytes"`
-	PromptMaxTokens     *int              `json:"prompt_max_tokens"`
-	ContextWindowTokens *int              `json:"context_window_tokens"`
-	MaxOutputTokens     *int              `json:"max_output_tokens"`
-	Billing             *Billing          `json:"billing"`
+	ModelID                string            `json:"model_id"`
+	Family                 string            `json:"family"`
+	Status                 string            `json:"status"`
+	Basis                  string            `json:"basis,omitempty"`
+	ServiceNotes           string            `json:"service_notes,omitempty"`
+	Operations             []string          `json:"operations"`
+	Gateway                *GatewaySpec      `json:"gateway"`
+	Execution              *ExecutionSpec    `json:"execution"`
+	Parameters             []ParameterSpec   `json:"parameters"`
+	InputModalities        []string          `json:"input_modalities"`
+	ToolCalling            *bool             `json:"tool_calling"`
+	Streaming              *bool             `json:"streaming"`
+	PromptCaching          *bool             `json:"prompt_caching"`
+	AudioKind              string            `json:"audio_kind"`
+	InputFormats           []string          `json:"input_formats"`
+	MaxInputBytes          *int64            `json:"max_input_bytes"`
+	MaxInputSeconds        *int              `json:"max_input_seconds"`
+	MaxOutputSeconds       *int              `json:"max_output_seconds"`
+	Voices                 any               `json:"voices"`
+	Languages              any               `json:"languages"`
+	Endpoints              []Endpoint        `json:"endpoints"`
+	Auth                   string            `json:"auth"`
+	RateLimit              any               `json:"rate_limit"`
+	Pagination             string            `json:"pagination"`
+	ResponseFields         []string          `json:"response_fields"`
+	DurationsSeconds       *DurationEnvelope `json:"durations_seconds"`
+	Resolutions            []string          `json:"resolutions"`
+	AspectRatios           []string          `json:"aspect_ratios"`
+	AudioSupported         *bool             `json:"audio_supported"`
+	OutputFormats          []string          `json:"output_formats"`
+	OutputSizes            []string          `json:"output_sizes"`
+	ReferenceImages        *MediaLimits      `json:"reference_images"`
+	ReferenceVideos        *MediaLimits      `json:"reference_videos"`
+	ReferenceAudios        *MediaLimits      `json:"reference_audios"`
+	PromptMaxChars         *int              `json:"prompt_max_chars"`
+	PromptMaxUTF8Bytes     *int              `json:"prompt_max_utf8_bytes"`
+	PromptMaxTokens        *int              `json:"prompt_max_tokens"`
+	ContextWindowTokens    *int              `json:"context_window_tokens"`
+	MaxOutputTokens        *int              `json:"max_output_tokens"`
+	ReasoningEfforts       map[string]string `json:"reasoning_efforts"`
+	DefaultReasoningEffort string            `json:"default_reasoning_effort"`
+	DefaultFor             []string          `json:"default_for"`
+	Billing                *Billing          `json:"billing"`
 }
 
 // lineRestrictedBasis marks a spec that describes our own line's restrictions
 // rather than the vendor model's published capabilities.
 const lineRestrictedBasis = "line_restricted"
+
+// defaultOperationFamily is the closed vocabulary of gateway-recommended
+// defaults. A default recommendation is product policy, not a vendor capability
+// claim, so it lives in the governance spec as `default_for` and is aggregated
+// into the published document without a per-model source claim.
+var defaultOperationFamily = map[string]string{
+	"chat":           "llm",
+	"vision_chat":    "llm",
+	"text_to_image":  "image",
+	"text_to_video":  "video",
+	"text_to_music":  "audio",
+	"speech_to_text": "audio",
+}
 
 // canonical collapses a declared-but-empty list to absent.
 //
@@ -238,6 +261,7 @@ func Build(specDir string) (*Document, error) {
 	}
 
 	doc := &Document{SchemaVersion: SchemaVersion, Models: make(map[string]Contract)}
+	specs := make([]specFile, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -257,16 +281,64 @@ func Build(specDir string) (*Document, error) {
 		if err != nil {
 			return nil, &SpecError{File: entry.Name(), Err: err}
 		}
+		specs = append(specs, spec)
 		doc.Models[spec.ModelID] = contract
 	}
+	defaults, err := projectDefaults(specs)
+	if err != nil {
+		return nil, err
+	}
+	doc.Defaults = defaults
 	doc.Version = Version(doc)
 	return doc, nil
+}
+
+// projectDefaults aggregates the optional `default_for` recommendation keys
+// declared by the governance specs. Duplicate or mis-family recommendations are
+// authoring errors: a silent overwrite would make the published recommendation
+// depend on file iteration order.
+func projectDefaults(specs []specFile) (map[string]string, error) {
+	defaults := make(map[string]string)
+	for _, spec := range specs {
+		seen := make(map[string]struct{}, len(spec.DefaultFor))
+		for _, operation := range spec.DefaultFor {
+			family, known := defaultOperationFamily[operation]
+			if !known {
+				return nil, fmt.Errorf("model %s: unknown default_for %q", spec.ModelID, operation)
+			}
+			if spec.Family != family {
+				return nil, fmt.Errorf("model %s: default_for %q requires family %q, got %q", spec.ModelID, operation, family, spec.Family)
+			}
+			if _, duplicate := seen[operation]; duplicate {
+				return nil, fmt.Errorf("model %s: repeated default_for %q", spec.ModelID, operation)
+			}
+			seen[operation] = struct{}{}
+			if previous, claimed := defaults[operation]; claimed {
+				return nil, fmt.Errorf("default_for %q claimed by both %s and %s", operation, previous, spec.ModelID)
+			}
+			defaults[operation] = spec.ModelID
+		}
+	}
+	if len(defaults) == 0 {
+		return nil, nil
+	}
+	return defaults, nil
 }
 
 // projectContract assembles one contract, including its operation subtree and
 // per-model content hash. It does not know which file it came from; Build adds
 // that context to any error.
 func projectContract(spec specFile) (Contract, error) {
+	if spec.DefaultReasoningEffort != "" {
+		if _, ok := spec.ReasoningEfforts[spec.DefaultReasoningEffort]; !ok {
+			return Contract{}, fmt.Errorf("default_reasoning_effort %q is not a key in reasoning_efforts", spec.DefaultReasoningEffort)
+		}
+	}
+	for level, wire := range spec.ReasoningEfforts {
+		if strings.TrimSpace(level) == "" || strings.TrimSpace(wire) == "" {
+			return Contract{}, fmt.Errorf("reasoning_efforts contains an empty level or wire value")
+		}
+	}
 	operations, operationUnknowns, err := projectOperations(spec)
 	if err != nil {
 		return Contract{}, err
@@ -276,48 +348,50 @@ func projectContract(spec specFile) (Contract, error) {
 		return Contract{}, err
 	}
 	contract := Contract{
-		ModelID:             spec.ModelID,
-		SchemaVersion:       SchemaVersion,
-		ExecutionStatus:     executionStatus,
-		ExecutionReason:     executionReason,
-		Family:              spec.Family,
-		Status:              spec.Status,
-		Basis:               spec.Basis,
-		ServiceNotes:        spec.ServiceNotes,
-		OperationIDs:        operationIDs(operations),
-		Operations:          operations,
-		Unknowns:            mergeUnknowns(modelUnknowns(spec), operationUnknowns),
-		InputModalities:     canonical(spec.InputModalities),
-		ToolCalling:         spec.ToolCalling,
-		Streaming:           spec.Streaming,
-		PromptCaching:       spec.PromptCaching,
-		AudioKind:           spec.AudioKind,
-		InputFormats:        canonical(spec.InputFormats),
-		MaxInputBytes:       spec.MaxInputBytes,
-		MaxInputSeconds:     spec.MaxInputSeconds,
-		MaxOutputSeconds:    spec.MaxOutputSeconds,
-		Voices:              numericVoices(spec.Voices),
-		Languages:           stringLanguages(spec.Languages),
-		Endpoints:           canonical(spec.Endpoints),
-		Auth:                spec.Auth,
-		RateLimit:           spec.RateLimit,
-		Pagination:          spec.Pagination,
-		ResponseFields:      canonical(spec.ResponseFields),
-		DurationsSeconds:    spec.DurationsSeconds,
-		Resolutions:         canonical(spec.Resolutions),
-		AspectRatios:        canonical(spec.AspectRatios),
-		AudioSupported:      spec.AudioSupported,
-		OutputFormats:       canonical(spec.OutputFormats),
-		OutputSizes:         canonical(spec.OutputSizes),
-		ReferenceImages:     normalizeMedia(spec.ReferenceImages),
-		ReferenceVideos:     normalizeMedia(spec.ReferenceVideos),
-		ReferenceAudios:     normalizeMedia(spec.ReferenceAudios),
-		PromptMaxChars:      spec.PromptMaxChars,
-		PromptMaxUTF8Bytes:  spec.PromptMaxUTF8Bytes,
-		PromptMaxTokens:     spec.PromptMaxTokens,
-		ContextWindowTokens: spec.ContextWindowTokens,
-		MaxOutputTokens:     spec.MaxOutputTokens,
-		Billing:             spec.Billing,
+		ModelID:                spec.ModelID,
+		SchemaVersion:          SchemaVersion,
+		ExecutionStatus:        executionStatus,
+		ExecutionReason:        executionReason,
+		Family:                 spec.Family,
+		Status:                 spec.Status,
+		Basis:                  spec.Basis,
+		ServiceNotes:           spec.ServiceNotes,
+		OperationIDs:           operationIDs(operations),
+		Operations:             operations,
+		Unknowns:               mergeUnknowns(modelUnknowns(spec), operationUnknowns),
+		InputModalities:        canonical(spec.InputModalities),
+		ToolCalling:            spec.ToolCalling,
+		Streaming:              spec.Streaming,
+		PromptCaching:          spec.PromptCaching,
+		AudioKind:              spec.AudioKind,
+		InputFormats:           canonical(spec.InputFormats),
+		MaxInputBytes:          spec.MaxInputBytes,
+		MaxInputSeconds:        spec.MaxInputSeconds,
+		MaxOutputSeconds:       spec.MaxOutputSeconds,
+		Voices:                 numericVoices(spec.Voices),
+		Languages:              stringLanguages(spec.Languages),
+		Endpoints:              canonical(spec.Endpoints),
+		Auth:                   spec.Auth,
+		RateLimit:              spec.RateLimit,
+		Pagination:             spec.Pagination,
+		ResponseFields:         canonical(spec.ResponseFields),
+		DurationsSeconds:       spec.DurationsSeconds,
+		Resolutions:            canonical(spec.Resolutions),
+		AspectRatios:           canonical(spec.AspectRatios),
+		AudioSupported:         spec.AudioSupported,
+		OutputFormats:          canonical(spec.OutputFormats),
+		OutputSizes:            canonical(spec.OutputSizes),
+		ReferenceImages:        normalizeMedia(spec.ReferenceImages),
+		ReferenceVideos:        normalizeMedia(spec.ReferenceVideos),
+		ReferenceAudios:        normalizeMedia(spec.ReferenceAudios),
+		PromptMaxChars:         spec.PromptMaxChars,
+		PromptMaxUTF8Bytes:     spec.PromptMaxUTF8Bytes,
+		PromptMaxTokens:        spec.PromptMaxTokens,
+		ContextWindowTokens:    spec.ContextWindowTokens,
+		MaxOutputTokens:        spec.MaxOutputTokens,
+		ReasoningEfforts:       spec.ReasoningEfforts,
+		DefaultReasoningEffort: spec.DefaultReasoningEffort,
+		Billing:                spec.Billing,
 	}
 	version, err := contractVersion(contract)
 	if err != nil {
@@ -535,6 +609,17 @@ func Version(doc *Document) string {
 	digest := sha256.New()
 	digest.Write([]byte(doc.SchemaVersion))
 	digest.Write([]byte{0})
+	defaultKeys := make([]string, 0, len(doc.Defaults))
+	for operation := range doc.Defaults {
+		defaultKeys = append(defaultKeys, operation)
+	}
+	sort.Strings(defaultKeys)
+	for _, operation := range defaultKeys {
+		digest.Write([]byte(operation))
+		digest.Write([]byte{0})
+		digest.Write([]byte(doc.Defaults[operation]))
+		digest.Write([]byte{0})
+	}
 	for _, id := range ids {
 		body, err := common.Marshal(doc.Models[id])
 		if err != nil {
