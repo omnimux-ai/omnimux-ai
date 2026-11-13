@@ -6,11 +6,10 @@ OmniMux 桌面端帮助 TikTok 跨境卖家，用 AI 创作、复刻并发布带
 
 [官网](https://omnimux.ai) · [文档](https://docs.omnimux.ai) · [许可证](./LICENSE) · [商业授权](./COMMERCIAL.md)
 
-> **状态：源码已按版本快照发布。** 本仓库是 OmniMux 的统一源码仓库。三个目录各自对应一个已交付版本，更新方式是在发版时整体替换该目录；本仓库不接受直接开发提交，开发在各自的上游仓库进行。
+> **状态：源码已按版本快照发布。** 本仓库是 OmniMux 的桌面端与插件源码快照。两个目录各自对应一个已交付版本，更新方式是在发版时整体替换该目录；本仓库不接受直接开发提交，开发在各自的上游仓库进行。
 >
 > | 目录 | 内容 | 对应版本 |
 > | :--- | :--- | :--- |
-> | [`gateway/`](./gateway/) | 服务端网关：模型接口转发、异步生成任务、账户与积分结算 | 见 `gateway/SOURCE.json`，对应 omnimux.ai 线上运行的构筑物 |
 > | [`desktop/`](./desktop/) | macOS 与 Windows 桌面客户端 | 桌面端 v2.0.18 |
 > | [`plugins/`](./plugins/) | 桌面端功能插件 | 该桌面版本安装的插件集 |
 >
@@ -42,9 +41,10 @@ OmniMux 桌面端帮助 TikTok 跨境卖家，用 AI 创作、复刻并发布带
 
 | 目录 | 内容 | 主要上游 |
 | :--- | :--- | :--- |
-| [`gateway/`](./gateway/) | 服务端网关：模型接口转发、异步生成任务、账户与积分结算 | [QuantumNous/new-api](https://github.com/QuantumNous/new-api) |
 | [`desktop/`](./desktop/) | macOS 与 Windows 桌面客户端外壳 | [anywhere-labs/deepseek-harness-desktop](https://github.com/anywhere-labs/deepseek-harness-desktop) |
 | [`plugins/`](./plugins/) | 桌面端功能插件 | 见 [NOTICE](./NOTICE) |
+
+网关源码在 [`omnimux-ai/omnimux-gateway`](https://github.com/omnimux-ai/omnimux-gateway) 实时公开，不再作为本仓库的快照组件。
 
 ---
 
@@ -60,4 +60,4 @@ OmniMux 桌面端帮助 TikTok 跨境卖家，用 AI 创作、复刻并发布带
 
 2026-10-28 之前发布到 npm 的插件版本，继续按其发布时的许可证授权（Sustainable Source 1.0 或 MIT）。
 
-网关公开时包含落地页在内的完整前端，与线上运行版本一致。
+网关源码（含落地页在内的完整前端）在 omnimux-ai/omnimux-gateway 公开，与线上运行版本一致。
